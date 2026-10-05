@@ -2551,11 +2551,12 @@ async function handleMasterSeed() {
 }
 
 // ==============================================================================
-// INITIALIZATION ON LOAD
+// INITIALIZATION ON LOAD (AUTH-GATED)
 // ==============================================================================
-document.addEventListener('DOMContentLoaded', async () => {
-  console.log('[REVARA Command Center] Initializing...');
-  
+async function initializeDashboard() {
+  console.log('[REVARA Command Center] Initializing Dashboard...');
+  updateAdminHeader();
+
   // 1. Initial fetch of all tables from Supabase
   const success = await fetchAllRealtimeData();
   if (success) {
@@ -2575,4 +2576,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 3. Render initial tab
   renderActiveTabContent();
+}
+
+window.initializeDashboard = initializeDashboard;
+
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('[REVARA Command Center] Checking admin authentication status...');
+  try {
+    const admin = await checkAdminSession();
+    if (admin) {
+      document.getElementById('admin-login-overlay')?.classList.add('hidden');
+      document.getElementById('main-dashboard')?.classList.remove('hidden');
+      await initializeDashboard();
+    } else {
+      document.getElementById('admin-login-overlay')?.classList.remove('hidden');
+      document.getElementById('main-dashboard')?.classList.add('hidden');
+    }
+  } catch (e) {
+    console.warn('[REVARA] Session check warning:', e);
+    document.getElementById('admin-login-overlay')?.classList.remove('hidden');
+    document.getElementById('main-dashboard')?.classList.add('hidden');
+  }
 });
+

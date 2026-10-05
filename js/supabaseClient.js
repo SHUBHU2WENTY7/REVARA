@@ -4,15 +4,22 @@
 // 100% Live Database State — No Mocks, No Fake Data
 // ==============================================================================
 
+// SECURITY: Use the ANON (public) key only.
+// The service_role key MUST NEVER appear in browser JavaScript.
+// Privileged operations go through Edge Functions (server-side only).
 const SUPABASE_URL = 'https://ynsathlkfnbryafckvwm.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inluc2F0aGxrZm5icnlhZmNrdndtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NzQwNTY3OSwiZXhwIjoyMTAyOTgxNjc5fQ.DREfaYV4ZYEsFTdRYNC5EwrtTOX3RoLzMKCgCwMtQdo';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY_HERE'; // Replace: Supabase Dashboard → Project Settings → API → anon public
+const EDGE_FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`;
+
+// Current authenticated admin (set after login)
+let CURRENT_ADMIN = null;
 
 let supabaseClient = null;
 
 function getSupabase() {
   if (!supabaseClient && window.supabase) {
     try {
-      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: { persistSession: true, autoRefreshToken: true },
         realtime: { params: { eventsPerSecond: 10 } },
       });
@@ -22,6 +29,140 @@ function getSupabase() {
   }
   return supabaseClient;
 }
+
+// ── Admin Authentication ───────────────────────────────────────────────────
+
+async function signInAdmin(email, password) {
+  const sb = getSupabase();
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) throw new Error(error.message);
+
+  // Verify admin_roles entry
+  const { data: roleData, error: roleErr } = await sb
+    .from('admin_roles')
+    .select('role')
+    .eq('user_id', data.user.id)
+    .single();
+
+  if (roleErr || !roleData) {
+    await sb.auth.signOut();
+    throw new Error('Access denied: This account does not have admin privileges. Contact your REVARA super admin.');
+  }
+
+  CURRENT_ADMIN = { ...data.user, adminRole: roleData.role };
+  updateAdminHeader();
+  return CURRENT_ADMIN;
+}
+
+async function signOutAdmin() {
+  const sb = getSupabase();
+  await sb.auth.signOut();
+  CURRENT_ADMIN = null;
+  // Redirect to login
+  document.getElementById('admin-login-overlay')?.classList.remove('hidden');
+  document.getElementById('main-dashboard')?.classList.add('hidden');
+}
+
+async function checkAdminSession() {
+  const sb = getSupabase();
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return null;
+
+  const { data: roleData } = await sb
+    .from('admin_roles')
+    .select('role')
+    .eq('user_id', session.user.id)
+    .single();
+
+  if (!roleData) return null;
+  CURRENT_ADMIN = { ...session.user, adminRole: roleData.role };
+  return CURRENT_ADMIN;
+}
+
+async function getAdminAccessToken() {
+  const sb = getSupabase();
+  const { data } = await sb.auth.getSession();
+  return data?.session?.access_token ?? null;
+}
+
+// Call a privileged Edge Function with the admin's JWT
+async function callEdgeFunction(functionName, body) {
+  const token = await getAdminAccessToken();
+  if (!token) throw new Error('Not authenticated. Please sign in.');
+
+  const response = await fetch(`${EDGE_FUNCTIONS_URL}/${functionName}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'apikey': SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || `Edge Function ${functionName} failed (${response.status})`);
+  return data;
+}
+
+function updateAdminHeader() {
+  if (!CURRENT_ADMIN) return;
+  const nameEl = document.getElementById('admin-display-name');
+  const roleEl = document.getElementById('admin-display-role');
+  const avatarEl = document.getElementById('admin-avatar-initials');
+  if (nameEl) nameEl.textContent = CURRENT_ADMIN.email?.split('@')[0] || 'Admin';
+  if (roleEl) roleEl.textContent = (CURRENT_ADMIN.adminRole || 'admin').replace(/_/g, ' ').toUpperCase();
+  if (avatarEl) {
+    const initials = (CURRENT_ADMIN.email || 'AD').substring(0, 2).toUpperCase();
+    avatarEl.textContent = initials;
+  }
+}
+
+async function handleAdminSignIn() {
+  const btn = document.getElementById('admin-sign-in-btn');
+  const errDiv = document.getElementById('admin-login-error');
+  const emailInput = document.getElementById('admin-email');
+  const passInput = document.getElementById('admin-password');
+
+  const email = emailInput?.value.trim();
+  const password = passInput?.value;
+
+  if (!email || !password) {
+    if (errDiv) {
+      errDiv.textContent = 'Please enter both admin email and password.';
+      errDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (errDiv) errDiv.classList.add('hidden');
+  if (btn) {
+    btn.textContent = 'Verifying credentials...';
+    btn.disabled = true;
+  }
+
+  try {
+    await signInAdmin(email, password);
+    document.getElementById('admin-login-overlay')?.classList.add('hidden');
+    document.getElementById('main-dashboard')?.classList.remove('hidden');
+    if (typeof initializeDashboard === 'function') {
+      await initializeDashboard();
+    }
+  } catch (err) {
+    console.error('[REVARA] Sign-in failed:', err);
+    if (errDiv) {
+      errDiv.textContent = err.message || 'Authentication failed. Please verify credentials.';
+      errDiv.classList.remove('hidden');
+    }
+    if (btn) {
+      btn.textContent = 'SIGN IN TO COMMAND CENTER';
+      btn.disabled = false;
+    }
+  }
+}
+
+
+
 
 // Master state cache — all live data from Supabase
 const REVARA_STATE = {
@@ -242,13 +383,16 @@ async function logAuditInSupabase(action, entityType, entityId, oldVal, newVal, 
   const sb = getSupabase();
   if (!sb) return;
   try {
+    // Always include the authenticated admin's ID — never anonymous audit logs
+    const adminId = CURRENT_ADMIN?.id ?? null;
     await sb.from('audit_logs').insert([{
+      admin_id: adminId, // REQUIRED for traceability
       action,
       entity_type: entityType,
-      entity_id: entityId,
+      entity_id: String(entityId),
       old_value: oldVal ? JSON.stringify(oldVal) : null,
       new_value: newVal ? JSON.stringify(newVal) : null,
-      reason: reason || 'Authorized via REVARA Command Center',
+      reason: reason || 'Authorized via REVARA CRM',
     }]);
   } catch (e) {
     console.warn('[REVARA] Audit log write error:', e);
@@ -274,117 +418,106 @@ function sanitizeProductPayload(data) {
 }
 
 // 1. PRODUCTS MUTATIONS
+// 1. PRODUCT MUTATIONS — via admin-product-write Edge Function
 async function createProductInSupabase(productData) {
-  const sb = getSupabase();
-  const cleanData = sanitizeProductPayload(productData);
-  const res = await sb.from('products').insert([cleanData]).select().single();
-  if (!res.error) {
-    await logAuditInSupabase('CREATE_PRODUCT', 'products', res.data.id, null, res.data, `Created product: ${res.data.name} (SKU: ${res.data.sku})`);
+  try {
+    const cleanData = sanitizeProductPayload(productData);
+    const result = await callEdgeFunction('admin-product-write', {
+      action: 'create',
+      product: cleanData,
+    });
+    return { data: result, error: null };
+  } catch (err) {
+    console.error('[REVARA] createProductInSupabase error:', err);
+    return { error: { message: err.message } };
   }
-  return res;
 }
 
 async function updateProductInSupabase(productId, updates, reason) {
-  const sb = getSupabase();
-  const oldProd = REVARA_STATE.products.find(p => p.id === productId);
-  const cleanUpdates = sanitizeProductPayload(updates);
-  cleanUpdates.updated_at = new Date().toISOString();
-  const res = await sb.from('products').update(cleanUpdates).eq('id', productId).select().single();
-
-  if (!res.error) {
-    await logAuditInSupabase('UPDATE_PRODUCT', 'products', productId, oldProd, res.data, reason || 'Product updated via REVARA Command Center');
+  try {
+    const cleanUpdates = sanitizeProductPayload(updates);
+    const result = await callEdgeFunction('admin-product-write', {
+      action: 'update',
+      product_id: productId,
+      ...cleanUpdates,
+    });
+    return { data: result, error: null };
+  } catch (err) {
+    console.error('[REVARA] updateProductInSupabase error:', err);
+    return { error: { message: err.message } };
   }
-  return res;
 }
 
 async function deleteProductInSupabase(productId, reason) {
-  const sb = getSupabase();
-  const oldProd = REVARA_STATE.products.find(p => p.id === productId);
-  const res = await sb.from('products').delete().eq('id', productId);
-  if (!res.error) {
-    await logAuditInSupabase('DELETE_PRODUCT', 'products', productId, oldProd, null, reason || 'Product deleted by REVARA admin');
+  // Archive instead of hard delete to preserve order history
+  try {
+    const result = await callEdgeFunction('admin-product-write', {
+      action: 'archive',
+      product_id: productId,
+    });
+    return { data: result, error: null };
+  } catch (err) {
+    console.error('[REVARA] deleteProductInSupabase error:', err);
+    return { error: { message: err.message } };
   }
-  return res;
 }
 
 async function adjustStockInSupabase(productId, delta, reason) {
-  const sb = getSupabase();
-  const prod = REVARA_STATE.products.find(p => p.id === productId);
-  if (!prod) return { error: { message: 'Product not found' } };
-
-  const newStock = Math.max(0, (prod.stock || 0) + delta);
-  const res = await sb.from('products').update({
-    stock: newStock,
-    updated_at: new Date().toISOString()
-  }).eq('id', productId).select().single();
-
-  if (!res.error) {
-    await logAuditInSupabase('ADJUST_STOCK', 'products', productId, { stock: prod.stock }, { stock: newStock }, reason || `Stock adjusted by ${delta}`);
-  }
-  return res;
-}
-
-// 2. ORDER FULFILLMENT MUTATIONS
-async function updateOrderStatusInSupabase(orderId, status, trackingNumber, notes) {
-  const sb = getSupabase();
-  const updates = { status, updated_at: new Date().toISOString() };
-  if (trackingNumber !== undefined && trackingNumber !== null) updates.tracking_number = trackingNumber;
-  if (notes !== undefined && notes !== null) updates.notes = notes;
-
-  const res = await sb.from('orders').update(updates).eq('id', orderId).select().single();
-  if (!res.error) {
-    await logAuditInSupabase('UPDATE_ORDER_STATUS', 'orders', orderId, null, updates, `Order status transitioned to ${status}`);
-    
-    // Auto-send in-app notification to customer
-    const order = REVARA_STATE.orders.find(o => o.id === orderId);
-    if (order && order.user_id) {
-      try {
-        let notifTitle = `Order Status: ${status.toUpperCase()}`;
-        let notifBody = `Your REVARA order #${orderId.slice(0, 8)} status has been updated to ${status.toUpperCase()}.`;
-        if (status === 'shipped') {
-          notifTitle = '🚀 Your Order has been Dispatched!';
-          notifBody = trackingNumber 
-            ? `Your package is on its way! Tracking Number: ${trackingNumber}`
-            : `Your package has been dispatched from REVARA warehouse.`;
-        } else if (status === 'delivered') {
-          notifTitle = '📦 Order Delivered!';
-          notifBody = `Your REVARA order #${orderId.slice(0, 8)} has been delivered. Thank you for shopping with us!`;
-        }
-
-        await sb.from('notifications').insert([{
-          user_id: order.user_id,
-          title: notifTitle,
-          body: notifBody,
-          type: 'order_update',
-          reference_type: 'order',
-          reference_id: orderId,
-        }]);
-      } catch (e) {
-        console.warn('[REVARA] Could not send order notification:', e);
-      }
-    }
-  }
-  return res;
-}
-
-// 3. CIRCULAR TRADE-IN / GARMENTS MUTATIONS
-async function submitExchangeInspectionInSupabase(exchangeId, userId, inspectionData) {
-  const sb = getSupabase();
-  if (!sb) return { error: 'Supabase client not initialized' };
-
   try {
-    // 1. Insert Inspection Record
-    const inspRes = await sb.from('exchange_inspections').insert([{
+    const result = await callEdgeFunction('admin-product-write', {
+      action: 'adjust_stock',
+      product_id: productId,
+      delta: delta,
+      reason: reason || 'ADMIN_ADJUSTMENT',
+      notes: reason,
+    });
+    return { data: result, error: null };
+  } catch (err) {
+    console.error('[REVARA] adjustStockInSupabase error:', err);
+    return { error: { message: err.message } };
+  }
+}
+
+// 2. ORDER STATUS MUTATIONS — via admin-order-status Edge Function
+async function updateOrderStatusInSupabase(orderId, status, trackingNumber, notes) {
+  try {
+    const result = await callEdgeFunction('admin-order-status', {
+      order_id: orderId,
+      new_status: status,
+      tracking_number: trackingNumber,
+      notes: notes,
+    });
+    return { data: result, error: null };
+  } catch (err) {
+    console.error('[REVARA] updateOrderStatusInSupabase error:', err);
+    return { error: { message: err.message } };
+  }
+}
+
+
+
+// 3. EXCHANGE INSPECTION — via approve-exchange Edge Function
+async function submitExchangeInspectionInSupabase(exchangeId, userId, inspectionData) {
+  // This function now calls the approve-exchange Edge Function
+  // which atomically handles: inspection record + status update + wallet credit + notification
+  try {
+    const result = await callEdgeFunction('approve-exchange', {
       exchange_id: exchangeId,
       actual_weight_kg: inspectionData.actual_weight_kg,
       grade: inspectionData.grade,
-      accepted_items_count: inspectionData.accepted_items_count,
-      rejected_items_count: inspectionData.rejected_items_count,
-      final_credits_issued: inspectionData.final_credits_issued,
-      inspector_notes: inspectionData.inspector_notes,
+      accepted_items: inspectionData.accepted_items_count,
+      rejected_items: inspectionData.rejected_items_count || 0,
+      final_credits: inspectionData.final_credits_issued,
       inspection_photos: inspectionData.inspection_photos || [],
-      inspected_at: new Date().toISOString(),
-    }]).select().single();
+      notes: inspectionData.inspector_notes || '',
+    });
+    return { data: result, error: null };
+  } catch (err) {
+    console.error('[REVARA] submitExchangeInspectionInSupabase error:', err);
+    return { error: err.message };
+  }
+}
+
 
     // 2. Update Exchange Request Status
     const newStatus = inspectionData.grade === 'rejected' ? 'rejected' : 'credits_issued';
@@ -635,8 +768,14 @@ async function sendBroadcastNotificationInSupabase(title, body, type = 'promo', 
   }
 }
 
-// 9. MASTER DATABASE SEED ENGINE
-async function seedMasterDataInSupabase() {
+// 9. MASTER DATABASE SEED ENGINE (DISABLED IN PRODUCTION)
+// DISABLED: Seeds production database with demo records.
+// Do not call in production.
+async function _DISABLED_seedMasterDataInSupabase() {
+  throw new Error('Database seeding is disabled in production to protect live data integrity.');
+}
+
+async function _manualDevSeedMasterDataInSupabase() {
   const sb = getSupabase();
   if (!sb) throw new Error('Supabase client missing');
 

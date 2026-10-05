@@ -54,7 +54,39 @@
 </head>
 <body class="bg-[#080C14] text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
 
-  <div class="min-h-screen flex">
+  <!-- REVARA Admin Login Overlay -->
+  <div id="admin-login-overlay" class="fixed inset-0 z-[9999] flex items-center justify-center bg-[#070B14]">
+    <div class="w-full max-w-sm mx-4 space-y-6">
+      <div class="text-center">
+        <div class="inline-flex w-14 h-14 rounded-2xl bg-black items-center justify-center shadow-xl shadow-indigo-500/25 border border-white/20 p-2 mb-3">
+          <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 3L12 8L20 3V21L12 16L4 21V3Z" fill="white"/>
+            <rect x="8.5" y="11" width="2" height="2" fill="black"/>
+            <rect x="13.5" y="11" width="2" height="2" fill="black"/>
+          </svg>
+        </div>
+        <h1 class="text-3xl font-black text-white tracking-widest">REVARA</h1>
+        <p class="text-xs text-slate-400 mt-1 font-mono uppercase tracking-wider">Operations Command Center</p>
+      </div>
+      <div class="p-8 rounded-2xl bg-slate-900/80 border border-white/10 backdrop-blur-xl space-y-4 shadow-2xl">
+        <div>
+          <label class="text-xs font-mono text-slate-400 uppercase tracking-wider">Admin Email</label>
+          <input id="admin-email" type="email" class="mt-1 w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-indigo-500 font-sans" placeholder="admin@revara.in" />
+        </div>
+        <div>
+          <label class="text-xs font-mono text-slate-400 uppercase tracking-wider">Password</label>
+          <input id="admin-password" type="password" class="mt-1 w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-indigo-500 font-sans" placeholder="••••••••" onkeydown="if(event.key==='Enter')handleAdminSignIn()" />
+        </div>
+        <div id="admin-login-error" class="hidden text-xs text-rose-400 font-mono p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20"></div>
+        <button id="admin-sign-in-btn" onclick="handleAdminSignIn()" class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm tracking-wide transition-all shadow-lg shadow-indigo-600/30">
+          SIGN IN TO COMMAND CENTER
+        </button>
+      </div>
+      <p class="text-center text-[11px] text-slate-600 font-mono">REVARA Operations — Authorized Personnel Only</p>
+    </div>
+  </div>
+
+  <div id="main-dashboard" class="min-h-screen flex hidden">
     <!-- MASTER SIDEBAR -->
     <aside class="fixed top-0 left-0 bottom-0 z-40 w-72 glass-sidebar flex flex-col justify-between">
       <div>
@@ -196,15 +228,18 @@
       <!-- Admin Profile Card Bottom -->
       <div class="p-4 border-t border-white/[0.07] bg-[#0A0E1A]">
         <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center gap-3">
-          <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center font-bold text-white text-xs shadow-md">
-            ST
+          <div id="admin-avatar-initials" class="w-9 h-9 rounded-lg bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center font-bold text-white text-xs shadow-md">
+            AD
           </div>
           <div class="flex-1 min-w-0">
-            <p class="text-xs font-bold text-white truncate">Shubhanshu Tiwari</p>
-            <p class="text-[10px] text-indigo-400 font-mono truncate">Lead Officer · REVARA Admin</p>
+            <p id="admin-display-name" class="text-xs font-bold text-white truncate">Administrator</p>
+            <p id="admin-display-role" class="text-[10px] text-indigo-400 font-mono truncate">Authorized Admin</p>
           </div>
-          <button onclick="handleSyncAll()" title="Force Full Sync" class="text-slate-400 hover:text-indigo-400 transition-colors">
+          <button onclick="handleSyncAll()" title="Force Full Sync" class="text-slate-400 hover:text-indigo-400 transition-colors p-1">
             🔄
+          </button>
+          <button onclick="signOutAdmin()" title="Sign Out" class="text-slate-400 hover:text-rose-400 transition-colors p-1">
+            🚪
           </button>
         </div>
       </div>
