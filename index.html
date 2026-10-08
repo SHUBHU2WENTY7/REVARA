@@ -50,7 +50,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
 
   <!-- Modern Obsidian & Electric Indigo Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-[#080C14] text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
 
@@ -68,21 +68,90 @@
         <h1 class="text-3xl font-black text-white tracking-widest">REVARA</h1>
         <p class="text-xs text-slate-400 mt-1 font-mono uppercase tracking-wider">Operations Command Center</p>
       </div>
-      <div class="p-8 rounded-2xl bg-slate-900/80 border border-white/10 backdrop-blur-xl space-y-4 shadow-2xl">
+      <div class="p-7 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl space-y-4 shadow-2xl">
+        <!-- Local file protocol warning (if not served via http) -->
+        <div id="file-protocol-warning" class="hidden p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-mono leading-tight">
+          ⚠️ <strong>Local file detected:</strong> OAuth (Google/GitHub) requires running via a local web server (e.g. <code>http://localhost:3000</code>). For email/password, you can sign in or create an admin account below.
+        </div>
+
+        <!-- Auth Mode Toggle: Sign In vs Create Admin -->
+        <div class="flex rounded-xl bg-slate-950 p-1 border border-white/10">
+          <button id="auth-tab-signin" type="button" onclick="toggleAuthMode(false)" class="flex-1 py-1.5 text-xs font-bold font-mono rounded-lg transition-all text-white bg-slate-800 shadow-sm border border-indigo-500">
+            SIGN IN
+          </button>
+          <button id="auth-tab-signup" type="button" onclick="toggleAuthMode(true)" class="flex-1 py-1.5 text-xs font-bold font-mono rounded-lg transition-all text-slate-400 border border-transparent hover:text-white">
+            CREATE ADMIN
+          </button>
+        </div>
+
+        <!-- Social OAuth Options -->
+        <div class="space-y-2.5">
+          <button id="admin-google-btn" onclick="handleAdminGoogleSignIn()" type="button" class="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs tracking-wide flex items-center justify-center gap-2.5 transition-all shadow-md">
+            <svg class="w-4 h-4" viewBox="0 0 24 24">
+              <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.4 9 5 12 5z"/>
+              <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"/>
+              <path fill="#FBBC05" d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.9 7.3C.7 9.7 0 12 0 14.5s.7 4.8 1.9 7.2l3.7-2.9z"/>
+              <path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.4-6.4-5.2L1.9 17C3.7 20.7 7.5 24 12 24z"/>
+            </svg>
+            Continue with Google
+          </button>
+          <button id="admin-github-btn" onclick="handleAdminGithubSignIn()" type="button" class="w-full py-2.5 px-4 rounded-xl bg-[#24292F] hover:bg-[#2f363d] text-white font-bold text-xs tracking-wide flex items-center justify-center gap-2.5 border border-white/10 transition-all shadow-md">
+            <svg class="w-4 h-4 fill-white" viewBox="0 0 24 24">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+            </svg>
+            Continue with GitHub
+          </button>
+        </div>
+
+        <div class="relative flex py-1 items-center">
+          <div class="flex-grow border-t border-slate-700"></div>
+          <span class="flex-shrink mx-3 text-[10px] font-mono uppercase tracking-widest text-slate-500">OR WITH CREDENTIALS</span>
+          <div class="flex-grow border-t border-slate-700"></div>
+        </div>
+
         <div>
-          <label class="text-xs font-mono text-slate-400 uppercase tracking-wider">Admin Email</label>
-          <input id="admin-email" type="email" class="mt-1 w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-indigo-500 font-sans" placeholder="admin@revara.in" />
+          <label class="text-[11px] font-mono text-slate-400 uppercase tracking-wider">Admin Email</label>
+          <input id="admin-email" type="email" class="mt-1 w-full px-4 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-indigo-500 font-sans" placeholder="admin@revara.in" />
         </div>
         <div>
-          <label class="text-xs font-mono text-slate-400 uppercase tracking-wider">Password</label>
-          <input id="admin-password" type="password" class="mt-1 w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-indigo-500 font-sans" placeholder="••••••••" onkeydown="if(event.key==='Enter')handleAdminSignIn()" />
+          <div class="flex justify-between items-center">
+            <label class="text-[11px] font-mono text-slate-400 uppercase tracking-wider">Password</label>
+            <button type="button" onclick="handleAdminMagicLink()" class="text-[10px] font-mono text-indigo-400 hover:text-indigo-300">Send Magic Link instead</button>
+          </div>
+          <input id="admin-password" type="password" class="mt-1 w-full px-4 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-indigo-500 font-sans" placeholder="••••••••" onkeydown="if(event.key==='Enter')handleAdminSignIn()" />
         </div>
         <div id="admin-login-error" class="hidden text-xs text-rose-400 font-mono p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20"></div>
-        <button id="admin-sign-in-btn" onclick="handleAdminSignIn()" class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm tracking-wide transition-all shadow-lg shadow-indigo-600/30">
+        <button id="admin-sign-in-btn" onclick="handleAdminSignIn()" class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs tracking-wider transition-all shadow-lg shadow-indigo-600/30 uppercase">
           SIGN IN TO COMMAND CENTER
         </button>
       </div>
       <p class="text-center text-[11px] text-slate-600 font-mono">REVARA Operations — Authorized Personnel Only</p>
+    </div>
+  </div>
+
+  <!-- REVARA Unauthorized Access Overlay (Part 7) -->
+  <div id="admin-unauthorized-overlay" class="fixed inset-0 z-[9999] flex items-center justify-center bg-[#070B14] hidden">
+    <div class="w-full max-w-md mx-4 p-8 rounded-2xl bg-slate-900/95 border border-rose-500/30 backdrop-blur-xl text-center space-y-5 shadow-2xl">
+      <div class="inline-flex w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/25 items-center justify-center text-3xl">
+        🔒
+      </div>
+      <div>
+        <h2 class="text-xl font-bold text-white tracking-wider font-mono">ACCESS RESTRICTED</h2>
+        <p class="text-xs text-rose-400 font-mono mt-1 uppercase tracking-widest">Unauthorized Account</p>
+      </div>
+      <div class="p-4 rounded-xl bg-slate-950/70 border border-white/10 text-left space-y-2">
+        <p class="text-xs text-slate-300 font-sans leading-relaxed">
+          Your account (<span id="unauth-user-email" class="text-white font-mono font-bold">--</span>) is authenticated with Supabase, but is not authorized to access the REVARA Command Center.
+        </p>
+        <p class="text-[11px] text-slate-400 font-sans">
+          To gain access, an existing Super Admin must assign your account a role in the <code class="text-indigo-300 font-mono bg-indigo-950/60 px-1 py-0.5 rounded">admin_roles</code> table.
+        </p>
+      </div>
+      <div class="space-y-2">
+        <button onclick="signOutAdmin()" type="button" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs tracking-wider transition-all border border-white/10 uppercase font-mono">
+          Sign Out & Switch Account
+        </button>
+      </div>
     </div>
   </div>
 
@@ -287,8 +356,8 @@
   <!-- GLOBAL MODAL CONTAINER -->
   <div id="global-modal-container"></div>
 
-  <!-- Scripts -->
-  <script src="js/supabaseClient.js"></script>
-  <script src="js/app.js"></script>
+  <!-- Scripts — canonical root paths -->
+  <script src="supabaseClient.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
