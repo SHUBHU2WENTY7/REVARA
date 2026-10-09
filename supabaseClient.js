@@ -86,6 +86,15 @@ async function verifyAdminRole(user) {
       return metaRole;
     }
 
+    // Attempt automatic claim via claim_admin_role RPC (Security Definer)
+    try {
+      const { data: rpcClaim, error: rpcErr } = await sb.rpc('claim_admin_role');
+      if (!rpcErr && rpcClaim?.role) {
+        console.log('[REVARA Auth] Admin role auto-claimed via claim_admin_role RPC:', rpcClaim.role);
+        return rpcClaim.role;
+      }
+    } catch (_) {}
+
     // Controlled Bootstrap Mode (Part 8, Flow A):
     // Only if the admin_roles table is completely empty (first-time installation),
     // allow the first authenticated administrator to bootstrap as super_admin.
@@ -121,6 +130,54 @@ async function verifyAdminRole(user) {
     return null;
   }
 }
+
+async function claimAdminAccess() {
+  const sb = getSupabase();
+  const btn = document.getElementById('claim-admin-btn');
+  const errEl = document.getElementById('claim-admin-error');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Activating Admin Privileges...';
+  }
+  if (errEl) errEl.classList.add('hidden');
+
+  try {
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) throw new Error('No authenticated session found. Please sign in first.');
+
+    // 1. Try claim_admin_role RPC
+    const { data: rpcData, error: rpcErr } = await sb.rpc('claim_admin_role');
+    if (!rpcErr) {
+      console.log('[REVARA Auth] Admin role claimed via RPC successfully:', rpcData);
+      window.location.reload();
+      return;
+    }
+
+    // 2. Direct upsert fallback
+    const { error: insErr } = await sb.from('admin_roles').upsert([{
+      user_id: user.id,
+      role: 'super_admin'
+    }]);
+
+    if (insErr) {
+      throw new Error(insErr.message || rpcErr?.message || 'Could not assign admin role. Please run the SQL migration in Supabase Studio.');
+    }
+
+    window.location.reload();
+  } catch (err) {
+    console.error('[REVARA Auth] claimAdminAccess error:', err);
+    if (errEl) {
+      errEl.textContent = err.message;
+      errEl.classList.remove('hidden');
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'ACTIVATE SUPER ADMIN PRIVILEGES';
+    }
+  }
+}
+window.claimAdminAccess = claimAdminAccess;
 
 async function signInAdmin(email, password) {
   const sb = getSupabase();
@@ -338,9 +395,17 @@ async function handleAdminSignIn() {
     }
   } catch (err) {
     console.error('[REVARA] Sign-in failed:', err);
-    if (errDiv) {
+    const msg = err.message || '';
+    if (isSignUpMode && (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already in use'))) {
+      if (errDiv) {
+        errDiv.className = 'text-xs text-amber-300 font-mono p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20';
+        errDiv.textContent = 'Account already exists for this email! Switched to SIGN IN mode — enter your password or continue with Google below.';
+        errDiv.classList.remove('hidden');
+      }
+      toggleAuthMode(false);
+    } else if (errDiv) {
       errDiv.className = 'text-xs text-rose-400 font-mono p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20';
-      errDiv.textContent = err.message || 'Authentication failed. Please verify credentials.';
+      errDiv.textContent = msg || 'Authentication failed. Please verify credentials.';
       errDiv.classList.remove('hidden');
     }
   } finally {

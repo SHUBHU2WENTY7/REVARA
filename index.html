@@ -144,10 +144,14 @@
           Your account (<span id="unauth-user-email" class="text-white font-mono font-bold">--</span>) is authenticated with Supabase, but is not authorized to access the REVARA Command Center.
         </p>
         <p class="text-[11px] text-slate-400 font-sans">
-          To gain access, an existing Super Admin must assign your account a role in the <code class="text-indigo-300 font-mono bg-indigo-950/60 px-1 py-0.5 rounded">admin_roles</code> table.
+          To manage REVARA operations with this Gmail/email account, click below to activate your Super Admin privileges:
         </p>
       </div>
       <div class="space-y-2">
+        <button id="claim-admin-btn" onclick="claimAdminAccess()" type="button" class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs tracking-wider transition-all shadow-lg shadow-indigo-600/30 uppercase font-mono">
+          ⚡ ACTIVATE SUPER ADMIN PRIVILEGES
+        </button>
+        <div id="claim-admin-error" class="hidden text-xs text-rose-400 font-mono p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20"></div>
         <button onclick="signOutAdmin()" type="button" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs tracking-wider transition-all border border-white/10 uppercase font-mono">
           Sign Out & Switch Account
         </button>

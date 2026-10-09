@@ -2605,15 +2605,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     const admin = await checkAdminSession();
     if (admin) {
       document.getElementById('admin-login-overlay')?.classList.add('hidden');
+      document.getElementById('admin-unauthorized-overlay')?.classList.add('hidden');
       document.getElementById('main-dashboard')?.classList.remove('hidden');
       await initializeDashboard();
     } else {
-      document.getElementById('admin-login-overlay')?.classList.remove('hidden');
-      document.getElementById('main-dashboard')?.classList.add('hidden');
+      const sb = typeof getSupabase === 'function' ? getSupabase() : null;
+      const { data: sessionData } = sb ? await sb.auth.getSession() : { data: {} };
+      if (sessionData?.session?.user) {
+        // Authenticated with Supabase but not yet authorized as admin
+        document.getElementById('admin-login-overlay')?.classList.add('hidden');
+        document.getElementById('admin-unauthorized-overlay')?.classList.remove('hidden');
+        document.getElementById('main-dashboard')?.classList.add('hidden');
+      } else {
+        document.getElementById('admin-login-overlay')?.classList.remove('hidden');
+        document.getElementById('admin-unauthorized-overlay')?.classList.add('hidden');
+        document.getElementById('main-dashboard')?.classList.add('hidden');
+      }
     }
   } catch (e) {
     console.warn('[REVARA] Session check warning:', e);
     document.getElementById('admin-login-overlay')?.classList.remove('hidden');
+    document.getElementById('admin-unauthorized-overlay')?.classList.add('hidden');
     document.getElementById('main-dashboard')?.classList.add('hidden');
   }
 });
