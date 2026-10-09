@@ -785,57 +785,38 @@ async function adjustWalletCreditInSupabase(userId, deltaAmount, reason) {
   if (!sb) return { error: 'Supabase client not initialized' };
 
   try {
-    let { data: wallet } = await sb.from('wallets').select('*').eq('user_id', userId).single();
-    if (!wallet) {
-      const createWal = await sb.from('wallets').insert([{
-        user_id: userId,
-        available_credits: Math.max(0, deltaAmount),
-        pending_credits: 0,
-        total_earned: deltaAmount > 0 ? deltaAmount : 0,
-        total_used: deltaAmount < 0 ? Math.abs(deltaAmount) : 0,
-        updated_at: new Date().toISOString()
-      }]).select().single();
-      wallet = createWal.data;
-    } else {
-      const newBal = Math.max(0, (wallet.available_credits || 0) + deltaAmount);
-      await sb.from('wallets').update({
-        available_credits: newBal,
-        total_earned: deltaAmount > 0 ? (wallet.total_earned || 0) + deltaAmount : wallet.total_earned,
-        total_used: deltaAmount < 0 ? (wallet.total_used || 0) + Math.abs(deltaAmount) : wallet.total_used,
-        updated_at: new Date().toISOString()
-      }).eq('id', wallet.id);
-      wallet.available_credits = newBal;
+    const { data, error } = await sb.rpc('admin_adjust_wallet', {
+      p_user_id: userId,
+      p_amount: deltaAmount,
+      p_reason: reason || 'Manual credit adjustment by REVARA Admin'
+    });
+
+    if (error) {
+      console.error('[REVARA] Wallet adjustment RPC failed:', error);
+      return { error: error.message };
     }
 
-    if (wallet) {
-      await sb.from('wallet_transactions').insert([{
-        wallet_id: wallet.id,
-        type: 'credit_adjusted',
-        amount: deltaAmount,
-        balance_after: wallet.available_credits,
-        reference_type: 'manual_adjustment',
-        description: reason || 'Manual credit adjustment by REVARA Admin',
+    try {
+      await sb.from('notifications').insert([{
+        user_id: userId,
+        title: deltaAmount >= 0 ? '💰 Wallet Credited' : 'ℹ️ Wallet Adjusted',
+        body: deltaAmount >= 0 
+          ? `₹${deltaAmount.toLocaleString()} credits added to your REVARA wallet. Note: ${reason}`
+          : `₹${Math.abs(deltaAmount).toLocaleString()} credits adjusted in your REVARA wallet. Note: ${reason}`,
+        type: 'credit_issued',
+        reference_type: 'wallet',
         created_at: new Date().toISOString()
       }]);
-
-      try {
-        await sb.from('notifications').insert([{
-          user_id: userId,
-          title: deltaAmount >= 0 ? '💰 Wallet Credited' : 'ℹ️ Wallet Adjusted',
-          body: deltaAmount >= 0 
-            ? `₹${deltaAmount.toLocaleString()} credits added to your REVARA wallet. Note: ${reason}`
-            : `₹${Math.abs(deltaAmount).toLocaleString()} credits adjusted in your REVARA wallet. Note: ${reason}`,
-          type: 'credit_issued',
-          reference_type: 'wallet',
-          reference_id: wallet.id,
-        }]);
-      } catch (e) {}
+    } catch (notifErr) {
+      console.warn('[REVARA] Wallet notification insert warning:', notifErr);
     }
 
-    await logAuditInSupabase('MANUAL_WALLET_ADJUSTMENT', 'wallets', wallet ? wallet.id : userId, null, { delta: deltaAmount }, reason);
-    return { data: wallet, error: null };
-  } catch (e) {
-    return { error: e.message };
+    await logAuditInSupabase('UPDATE', 'wallets', userId, null, { amount: deltaAmount, reason }, `Wallet credits adjusted: ${deltaAmount}`);
+    await fetchAllRealtimeData();
+    return { data };
+  } catch (err) {
+    console.error('[REVARA] adjustWalletCreditInSupabase error:', err);
+    return { error: err.message };
   }
 }
 
@@ -1124,5 +1105,5 @@ async function _manualDevSeedMasterDataInSupabase() {
   return true;
 }
 
-window.seedMasterDataInSupabase = seedMasterDataInSupabase;
+window.seedMasterDataInSupabase = _DISABLED_seedMasterDataInSupabase;
 
