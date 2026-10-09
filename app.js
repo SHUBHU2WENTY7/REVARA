@@ -2587,6 +2587,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('file-protocol-warning')?.classList.remove('hidden');
   }
 
+  // Detect OAuth redirect errors from Supabase in URL query params
+  const urlParams = new URLSearchParams(window.location.search);
+  const authError = urlParams.get('error_description') || urlParams.get('error');
+  if (authError) {
+    const errDiv = document.getElementById('admin-login-error');
+    if (errDiv) {
+      errDiv.className = 'text-xs text-rose-400 font-mono p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20';
+      errDiv.textContent = `OAuth Error: ${decodeURIComponent(authError.replace(/\+/g, ' '))}. Please verify Google OAuth Client ID / Secret in Supabase.`;
+      errDiv.classList.remove('hidden');
+    }
+    // Clean URL so refresh does not keep showing old error
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+
   try {
     const admin = await checkAdminSession();
     if (admin) {

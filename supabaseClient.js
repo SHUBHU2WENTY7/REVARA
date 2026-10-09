@@ -561,11 +561,21 @@ async function fetchAllRealtimeData() {
 }
 
 // --- REAL-TIME POSTGRES SUBSCRIPTION CHANNEL ---
+let activeRealtimeChannel = null;
+
 function setupRealtimeListener(onEventCallback) {
   const sb = getSupabase();
   if (!sb) return;
 
-  const channel = sb.channel('revara_command_center_realtime')
+  // If a channel is already active, unsubscribe and remove it before creating a new one
+  if (activeRealtimeChannel) {
+    try {
+      sb.removeChannel(activeRealtimeChannel);
+    } catch (_) {}
+    activeRealtimeChannel = null;
+  }
+
+  activeRealtimeChannel = sb.channel('revara_command_center_realtime')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, async (payload) => {
       console.log('[REVARA] ⚡ Realtime Order Event:', payload);
       await fetchAllRealtimeData();
@@ -635,7 +645,7 @@ function setupRealtimeListener(onEventCallback) {
       console.log('[REVARA] Supabase Realtime Channel Status:', status);
     });
 
-  return channel;
+  return activeRealtimeChannel;
 }
 
 // --- DATABASE MUTATIONS ---
