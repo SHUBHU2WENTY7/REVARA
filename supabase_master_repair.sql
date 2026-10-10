@@ -278,3 +278,264 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.approve_exchange_credits TO authenticated, anon;
+
+
+-- ── 9. FIX ORDER_STATUS ENUM CAST IN place_order & EXPAND STORAGE BUCKETS ─────
+DROP FUNCTION IF EXISTS place_order(UUID, UUID, JSONB, NUMERIC, NUMERIC, NUMERIC, NUMERIC, NUMERIC, TEXT, TEXT, TEXT);
+
+CREATE OR REPLACE FUNCTION place_order(
+  p_user_id         UUID,
+  p_address_id      UUID,
+  p_items           JSONB,
+  p_subtotal        NUMERIC,
+  p_credits_applied NUMERIC  DEFAULT 0,
+  p_discount        NUMERIC  DEFAULT 0,
+  p_shipping_fee    NUMERIC  DEFAULT 0,
+  p_total           NUMERIC  DEFAULT 0,
+  p_payment_id      TEXT     DEFAULT NULL,
+  p_payment_method  TEXT     DEFAULT 'cod',
+  p_coupon_code     TEXT     DEFAULT NULL
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_order_id       UUID;
+  v_display_id     TEXT;
+  v_item           JSONB;
+  v_product        RECORD;
+  v_wallet         RECORD;
+  v_coupon         RECORD;
+  v_coupon_id      UUID    := NULL;
+  v_coupon_disc    NUMERIC := 0;
+  v_server_total   NUMERIC := 0;
+  v_final_total    NUMERIC;
+  v_initial_status order_status;
+BEGIN
+  -- 1. Validate user exists in profiles
+  IF NOT EXISTS (SELECT 1 FROM profiles WHERE id = p_user_id) THEN
+    RAISE EXCEPTION 'REVARA:user_not_found:User profile not found for id %', p_user_id;
+  END IF;
+
+  -- 2. Validate items array not empty
+  IF jsonb_array_length(p_items) = 0 THEN
+    RAISE EXCEPTION 'REVARA:empty_cart:Order must contain at least one item';
+  END IF;
+
+  -- 3. Validate each product exists, is active, has sufficient stock
+  FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
+  LOOP
+    IF (v_item->>'product_id') IS NULL THEN
+      RAISE EXCEPTION 'REVARA:invalid_item:Item is missing product_id';
+    END IF;
+
+    SELECT * INTO v_product
+    FROM products
+    WHERE id = (v_item->>'product_id')::UUID
+      AND (status = 'active' OR status IS NULL);
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'REVARA:product_not_found:Product % not found or not active',
+        v_item->>'product_id';
+    END IF;
+
+    IF v_product.stock < (v_item->>'quantity')::INT THEN
+      RAISE EXCEPTION 'REVARA:insufficient_stock:Insufficient stock for "%": have %, need %',
+        v_product.name, v_product.stock, (v_item->>'quantity')::INT;
+    END IF;
+
+    v_server_total := v_server_total + (v_product.price * (v_item->>'quantity')::INT);
+  END LOOP;
+
+  -- 4. Validate coupon if provided
+  IF p_coupon_code IS NOT NULL AND trim(p_coupon_code) != '' THEN
+    SELECT * INTO v_coupon
+    FROM coupons
+    WHERE code = UPPER(trim(p_coupon_code))
+      AND is_active = true
+      AND (valid_from IS NULL OR valid_from <= NOW())
+      AND (valid_until IS NULL OR valid_until >= NOW())
+      AND (usage_limit IS NULL OR usage_count < usage_limit);
+
+    IF FOUND THEN
+      v_coupon_id := v_coupon.id;
+      IF v_server_total >= COALESCE(v_coupon.min_order_amount, 0) THEN
+        IF v_coupon.type = 'percent' THEN
+          v_coupon_disc := LEAST(
+            v_server_total * (v_coupon.value / 100),
+            COALESCE(v_coupon.max_discount, v_server_total)
+          );
+        ELSIF v_coupon.type = 'flat' THEN
+          v_coupon_disc := LEAST(v_coupon.value, v_server_total);
+        ELSIF v_coupon.type = 'free_shipping' THEN
+          v_coupon_disc := p_shipping_fee;
+        END IF;
+      END IF;
+    END IF;
+  END IF;
+
+  -- 5. Validate and deduct credits atomically if used
+  IF p_credits_applied > 0 THEN
+    IF p_credits_applied > (v_server_total * 0.50) THEN
+      RAISE EXCEPTION 'REVARA:credits_cap_exceeded:Credits cannot exceed 50%% of order subtotal';
+    END IF;
+
+    SELECT * INTO v_wallet
+    FROM wallets
+    WHERE user_id = p_user_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'REVARA:wallet_not_found:No wallet found for user %', p_user_id;
+    END IF;
+
+    IF v_wallet.available_credits < p_credits_applied THEN
+      RAISE EXCEPTION 'REVARA:insufficient_credits:Available credits % < requested %',
+        v_wallet.available_credits, p_credits_applied;
+    END IF;
+
+    UPDATE wallets
+    SET available_credits = available_credits - p_credits_applied,
+        total_used        = total_used + p_credits_applied,
+        updated_at        = NOW()
+    WHERE user_id = p_user_id;
+
+    INSERT INTO wallet_transactions
+      (wallet_id, type, amount, balance_after, reference_type, description)
+    VALUES (
+      v_wallet.id,
+      'credit_used',
+      p_credits_applied,
+      v_wallet.available_credits - p_credits_applied,
+      'order',
+      'REVARA Credits redeemed at checkout'
+    );
+  END IF;
+
+  -- 6. Compute final total server-side
+  v_final_total := v_server_total
+                   - p_credits_applied
+                   - p_discount
+                   - v_coupon_disc
+                   + p_shipping_fee;
+
+  IF v_final_total < 0 THEN v_final_total := 0; END IF;
+
+  -- 7. Generate display order ID
+  v_display_id := 'REV-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-'
+                  || UPPER(SUBSTRING(gen_random_uuid()::TEXT FROM 1 FOR 6));
+
+  IF p_payment_id IS NOT NULL AND trim(p_payment_id) != '' THEN
+    v_initial_status := 'confirmed'::order_status;
+  ELSE
+    v_initial_status := 'placed'::order_status;
+  END IF;
+
+  -- 8. Insert order row with explicit order_status enum cast
+  INSERT INTO orders (
+    user_id, address_id, subtotal, credits_applied, discount,
+    shipping_fee, total, status, payment_id, tracking_number
+  ) VALUES (
+    p_user_id,
+    p_address_id,
+    v_server_total,
+    p_credits_applied,
+    p_discount + v_coupon_disc,
+    p_shipping_fee,
+    v_final_total,
+    v_initial_status,
+    NULLIF(trim(p_payment_id), ''),
+    v_display_id
+  ) RETURNING id INTO v_order_id;
+
+  -- 9. Insert order items + deduct stock + log inventory movements
+  FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
+  LOOP
+    SELECT * INTO v_product
+    FROM products
+    WHERE id = (v_item->>'product_id')::UUID
+    FOR UPDATE;
+
+    INSERT INTO order_items (
+      order_id, product_id, product_name, product_image,
+      quantity, unit_price, total
+    ) VALUES (
+      v_order_id,
+      (v_item->>'product_id')::UUID,
+      v_product.name,
+      COALESCE(v_item->>'product_image', (v_product.images)[1]),
+      (v_item->>'quantity')::INT,
+      v_product.price,
+      v_product.price * (v_item->>'quantity')::INT
+    );
+
+    UPDATE products
+    SET stock      = stock - (v_item->>'quantity')::INT,
+        updated_at = NOW()
+    WHERE id = (v_item->>'product_id')::UUID;
+
+    INSERT INTO inventory_movements (
+      product_id, quantity_change, reason,
+      reference_type, reference_id,
+      stock_before, stock_after
+    ) VALUES (
+      (v_item->>'product_id')::UUID,
+      -((v_item->>'quantity')::INT),
+      'ORDER_FULFILLED',
+      'order',
+      v_order_id::TEXT,
+      v_product.stock,
+      v_product.stock - (v_item->>'quantity')::INT
+    );
+  END LOOP;
+
+  -- 10. Record coupon usage
+  IF v_coupon_id IS NOT NULL THEN
+    INSERT INTO coupon_usages (coupon_id, user_id, order_id, discount_applied)
+    VALUES (v_coupon_id, p_user_id, v_order_id, v_coupon_disc)
+    ON CONFLICT DO NOTHING;
+
+    UPDATE coupons
+    SET usage_count = usage_count + 1
+    WHERE id = v_coupon_id;
+  END IF;
+
+  -- 11. In-app notification
+  INSERT INTO notifications (user_id, title, body, type, reference_type, reference_id)
+  VALUES (
+    p_user_id,
+    'Order Placed: #' || v_display_id,
+    'Your order has been placed successfully. We will confirm it shortly.',
+    'order_update',
+    'order',
+    v_order_id::TEXT
+  );
+
+  RETURN jsonb_build_object(
+    'order_id',    v_order_id,
+    'display_id',  v_display_id,
+    'total',       v_final_total,
+    'status',      'success'
+  );
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION place_order TO authenticated;
+REVOKE EXECUTE ON FUNCTION place_order FROM anon;
+
+-- Ensure all storage buckets exist
+INSERT INTO storage.buckets (id, name, public) VALUES
+  ('revara-exchange-photos', 'revara-exchange-photos', true),
+  ('revara-exchange-videos', 'revara-exchange-videos', true),
+  ('revara-products',        'revara-products',        true),
+  ('revara-avatars',         'revara-avatars',         true),
+  ('revara-review-photos',   'revara-review-photos',   true),
+  ('tff-exchange-photos',    'tff-exchange-photos',    true),
+  ('tff-exchange-videos',    'tff-exchange-videos',    true),
+  ('tff-products',           'tff-products',           true)
+ON CONFLICT (id) DO UPDATE SET public = true;
