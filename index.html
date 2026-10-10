@@ -53,25 +53,43 @@
   <link rel="stylesheet" href="styles.css">
 
   <!-- Mobile App OAuth Return & Deep Link Dispatcher -->
+  <!-- 
+    HOW THIS WORKS:
+    - Mobile app passes redirectTo = 'io.supabase.thefigurefactory://login-callback'
+      → Supabase returns directly to the deep link (this page is NOT involved at all)
+    - Dashboard OAuth passes redirectTo = 'https://revara-dashboard.vercel.app/?source=web'
+      → Supabase returns to this page WITH ?source=web in the URL
+    - If ?source=web is present  → this is a dashboard admin login → do nothing, let JS SDK handle it
+    - If ?source=web is absent   AND there is an #access_token fragment
+      → this is a mobile callback that leaked here (fallback only) → fire the deep link
+  -->
   <script>
     (function() {
       try {
         var hash = window.location.hash || '';
         var search = window.location.search || '';
         var isAuthCallback = hash.includes('access_token=') || hash.includes('refresh_token=') || search.includes('code=');
-        var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        // Dashboard OAuth always sets ?source=web — if it's present, this is an admin login
+        var isWebSource = search.includes('source=web');
 
-        // If user logged in via mobile app OAuth and landed on the dashboard:
-        if (isAuthCallback && (isMobile || !localStorage.getItem('revara_admin_session'))) {
-          var appDeepLink = 'io.supabase.thefigurefactory://login-callback' + hash;
-          // Trigger immediate app deep link
-          window.location.href = appDeepLink;
+        // Only deep-link to the mobile app when:
+        //   1. There IS an OAuth token in the URL   AND
+        //   2. The URL does NOT have ?source=web    AND
+        //   3. The device is mobile (or the URL has no source tag at all — safety net)
+        if (isAuthCallback && !isWebSource) {
+          var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+          if (isMobile) {
+            // Fire deep link immediately
+            var appDeepLink = 'io.supabase.thefigurefactory://login-callback' + hash;
+            window.location.href = appDeepLink;
 
-          // Also set fallback timeout
-          setTimeout(function() {
-            var banner = document.getElementById('mobile-app-redirect-banner');
-            if (banner) banner.classList.remove('hidden');
-          }, 300);
+            // Show fallback modal after 300ms if the OS didn't intercept the deep link
+            setTimeout(function() {
+              var banner = document.getElementById('mobile-app-redirect-banner');
+              if (banner) banner.classList.remove('hidden');
+            }, 300);
+          }
+          // On desktop without ?source=web → do nothing; Supabase JS SDK will parse the session normally
         }
       } catch (e) {
         console.warn('OAuth redirect check:', e);

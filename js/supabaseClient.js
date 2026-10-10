@@ -158,7 +158,9 @@ async function signUpAdmin(email, password) {
 
 async function signInAdminWithGoogle() {
   const sb = getSupabase();
-  const currentOrigin = window.location.origin + window.location.pathname;
+  // ?source=web prevents the mobile deep-link dispatcher in index.html
+  // from hijacking dashboard OAuth callbacks
+  const currentOrigin = window.location.origin + window.location.pathname + '?source=web';
   const { data, error } = await sb.auth.signInWithOAuth({
     provider: 'google',
     options: {
@@ -171,7 +173,7 @@ async function signInAdminWithGoogle() {
 
 async function signInAdminWithGithub() {
   const sb = getSupabase();
-  const currentOrigin = window.location.origin + window.location.pathname;
+  const currentOrigin = window.location.origin + window.location.pathname + '?source=web';
   const { data, error } = await sb.auth.signInWithOAuth({
     provider: 'github',
     options: {
@@ -184,7 +186,7 @@ async function signInAdminWithGithub() {
 
 async function signInAdminWithMagicLink(email) {
   const sb = getSupabase();
-  const currentOrigin = window.location.origin + window.location.pathname;
+  const currentOrigin = window.location.origin + window.location.pathname + '?source=web';
   const { data, error } = await sb.auth.signInWithOtp({
     email: email.trim(),
     options: {
