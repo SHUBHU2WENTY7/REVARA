@@ -860,12 +860,17 @@ function renderProductsView() {
           </p>
         </div>
 
-        <button onclick="openProductModal()" class="px-4 py-2 rounded-xl btn-primary text-xs font-bold font-mono flex items-center gap-2 shadow-lg shadow-indigo-600/25">
-          <span>+</span> Drop New Product
-        </button>
+        <div class="flex items-center gap-2.5">
+          <button onclick="openCategoryManagerModal()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 text-xs font-bold font-mono flex items-center gap-1.5 transition-all shadow-md">
+            <span>⚙️</span> Manage Categories
+          </button>
+          <button onclick="openProductModal()" class="px-4 py-2 rounded-xl btn-primary text-xs font-bold font-mono flex items-center gap-2 shadow-lg shadow-indigo-600/25">
+            <span>+</span> Drop New Product
+          </button>
+        </div>
       </div>
 
-      <!-- Categories Filter -->
+      <!-- Categories Filter & Management Bar -->
       <div class="flex items-center gap-2 overflow-x-auto pb-2 border-b border-white/[0.06]">
         <button onclick="setProductCategoryFilter('all')" class="px-3 py-1.5 rounded-xl text-xs font-semibold font-mono transition-all ${productFilterCategory === 'all' ? 'bg-indigo-600 text-white' : 'bg-slate-900/60 text-slate-400 hover:text-white border border-slate-800'}">
           ALL CATEGORIES (${STATE.products.length})
@@ -875,6 +880,9 @@ function renderProductsView() {
             ${c.name.toUpperCase()} (${STATE.products.filter(p => p.category_id === c.id).length})
           </button>
         `).join('')}
+        <button onclick="openCategoryManagerModal()" class="px-3 py-1.5 rounded-xl text-xs font-semibold font-mono text-indigo-400 bg-indigo-950/40 border border-indigo-500/30 hover:bg-indigo-900/50 flex items-center gap-1 whitespace-nowrap shadow-sm">
+          <span>+</span> Categories
+        </button>
       </div>
 
       <!-- Products Grid -->
@@ -947,6 +955,181 @@ function renderProductsView() {
 function setProductCategoryFilter(catId) {
   productFilterCategory = catId;
   renderActiveTabContent();
+}
+
+function openCategoryManagerModal() {
+  const container = document.getElementById('global-modal-container');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+      <div class="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-6 animate-scale-up shadow-2xl">
+        <div class="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <span>🏷️</span> Store Categories & Taxonomy
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">Add new categories or edit and remove existing categories for mobile app collectors.</p>
+          </div>
+          <button onclick="closeGlobalModal()" class="text-slate-400 hover:text-white text-base">✕</button>
+        </div>
+
+        <!-- Add Category Form -->
+        <div class="p-4 rounded-xl bg-slate-900/80 border border-indigo-500/20 space-y-3">
+          <h4 class="text-xs font-mono font-bold uppercase text-indigo-300 flex items-center gap-1.5">
+            <span>+</span> Add New Category
+          </h4>
+          <form onsubmit="handleAddCategorySubmit(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="sm:col-span-1">
+              <label class="block font-mono uppercase text-slate-400 text-[10px] mb-1 font-bold">Category Name *</label>
+              <input type="text" id="new-cat-name" required placeholder="e.g. Vintage Watches" oninput="document.getElementById('new-cat-slug').value = this.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')" class="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs focus:border-indigo-500 focus:outline-none">
+            </div>
+            <div class="sm:col-span-1">
+              <label class="block font-mono uppercase text-slate-400 text-[10px] mb-1 font-bold">Slug / Identifier</label>
+              <input type="text" id="new-cat-slug" placeholder="e.g. vintage-watches" class="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs font-mono focus:border-indigo-500 focus:outline-none">
+            </div>
+            <div class="sm:col-span-1 flex items-end">
+              <button type="submit" id="btn-add-category" class="w-full py-1.5 px-3 rounded-lg btn-primary text-xs font-bold font-mono">
+                Add Category →
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Existing Categories List -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-mono font-bold uppercase text-slate-300">Active Categories (${STATE.categories.length})</h4>
+            <span class="text-[10px] text-slate-500 font-mono">Changes sync in real-time</span>
+          </div>
+
+          <div class="space-y-2">
+            ${STATE.categories.length === 0 ? `
+              <div class="p-6 text-center text-slate-500 text-xs font-mono">No categories found. Add one above.</div>
+            ` : STATE.categories.map(c => {
+              const productCount = STATE.products.filter(p => p.category_id === c.id).length;
+              return `
+                <div id="cat-row-${c.id}" class="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs hover:border-slate-700 transition-all">
+                  <div class="flex items-center gap-3">
+                    <span class="w-7 h-7 rounded-lg bg-indigo-950/60 border border-indigo-500/30 text-indigo-300 font-mono font-bold flex items-center justify-center text-xs">
+                      ${c.sort_order || 1}
+                    </span>
+                    <div>
+                      <div class="font-bold text-white flex items-center gap-2">
+                        <span>${c.name}</span>
+                        <span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 text-[10px] font-mono">slug: ${c.slug}</span>
+                      </div>
+                      <div class="text-[11px] text-slate-400 mt-0.5">
+                        <span class="text-indigo-400 font-bold">${productCount}</span> active products in catalog
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <button type="button" onclick="handleEditCategory('${c.id}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono">
+                      Edit
+                    </button>
+                    <button type="button" onclick="handleDeleteCategory('${c.id}', '${c.name.replace(/'/g, "\\'")}')" class="px-2.5 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-500/30 text-xs font-mono">
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end pt-2 border-t border-white/[0.08]">
+          <button type="button" onclick="closeGlobalModal()" class="px-4 py-2 rounded-xl btn-secondary text-xs">Done</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function handleAddCategorySubmit(e) {
+  e.preventDefault();
+  const name = document.getElementById('new-cat-name').value.trim();
+  const slug = document.getElementById('new-cat-slug').value.trim();
+  const btn = document.getElementById('btn-add-category');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+  }
+
+  try {
+    const res = await createCategoryInSupabase({
+      name,
+      slug: slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      sort_order: STATE.categories.length + 1
+    });
+
+    if (res.error) {
+      showToastNotification('Failed to Add Category', res.error.message || 'Category creation error', 'error');
+    } else {
+      showToastNotification('Category Created', `"${name}" is now live across the catalog and app.`, 'success');
+      await fetchAllRealtimeData();
+      openCategoryManagerModal();
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Add Category →';
+    }
+  }
+}
+
+function handleEditCategory(catId) {
+  const cat = STATE.categories.find(c => c.id === catId);
+  if (!cat) return;
+  const row = document.getElementById(`cat-row-${catId}`);
+  if (!row) return;
+
+  row.innerHTML = `
+    <form onsubmit="handleSaveEditCategory(event, '${catId}')" class="w-full flex flex-col sm:flex-row sm:items-center gap-2">
+      <input type="text" id="edit-cat-name-${catId}" value="${cat.name}" required class="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs flex-1 focus:border-indigo-500 focus:outline-none">
+      <input type="text" id="edit-cat-slug-${catId}" value="${cat.slug}" required class="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs font-mono w-32 focus:border-indigo-500 focus:outline-none">
+      <input type="number" id="edit-cat-order-${catId}" value="${cat.sort_order || 1}" required class="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs font-mono w-16 focus:border-indigo-500 focus:outline-none">
+      <div class="flex items-center gap-1.5">
+        <button type="submit" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold font-mono">Save</button>
+        <button type="button" onclick="openCategoryManagerModal()" class="px-2.5 py-1.5 rounded-lg btn-secondary text-xs">Cancel</button>
+      </div>
+    </form>
+  `;
+}
+
+async function handleSaveEditCategory(e, catId) {
+  e.preventDefault();
+  const name = document.getElementById(`edit-cat-name-${catId}`).value.trim();
+  const slug = document.getElementById(`edit-cat-slug-${catId}`).value.trim();
+  const sort_order = Number(document.getElementById(`edit-cat-order-${catId}`).value) || 1;
+
+  const res = await updateCategoryInSupabase(catId, { name, slug, sort_order });
+  if (res.error) {
+    showToastNotification('Failed to Update', res.error.message || 'Update failed', 'error');
+  } else {
+    showToastNotification('Category Updated', `Updated "${name}" successfully.`, 'success');
+    await fetchAllRealtimeData();
+    openCategoryManagerModal();
+  }
+}
+
+async function handleDeleteCategory(catId, catName) {
+  const prodCount = STATE.products.filter(p => p.category_id === catId).length;
+  const msg = prodCount > 0 
+    ? `Are you sure you want to delete category "${catName}"? ${prodCount} products in this category will become unassigned.`
+    : `Are you sure you want to remove category "${catName}"?`;
+
+  if (!confirm(msg)) return;
+
+  const res = await deleteCategoryInSupabase(catId, catName);
+  if (res.error) {
+    showToastNotification('Failed to Delete', res.error.message || 'Delete error', 'error');
+  } else {
+    showToastNotification('Category Removed', `"${catName}" has been removed.`, 'success');
+    await fetchAllRealtimeData();
+    openCategoryManagerModal();
+  }
 }
 
 function openProductModal(productId = null) {
@@ -1621,31 +1804,55 @@ function calculateModalCredits() {
   creditsInput.value = multipliers[grade] ?? 350;
 }
 
+let isSubmittingInspection = false;
+
 async function handleInspectionSubmit(e, exchangeId, userId) {
   e.preventDefault();
-  const actual_weight_kg = Number(document.getElementById('insp-weight').value);
-  const grade = document.getElementById('insp-grade').value;
-  const final_credits_issued = Number(document.getElementById('insp-final-credits').value);
-  const inspector_notes = document.getElementById('insp-notes').value;
+  if (isSubmittingInspection) {
+    console.warn('[REVARA] Duplicate inspection submit prevented.');
+    return;
+  }
 
-  const inspectionData = {
-    actual_weight_kg,
-    grade,
-    accepted_items_count: grade === 'rejected' ? 0 : 1,
-    rejected_items_count: grade === 'rejected' ? 1 : 0,
-    final_credits_issued,
-    inspector_notes,
-    inspection_photos: [],
-  };
+  const form = e.target;
+  const submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="inline-block animate-spin mr-1">⏳</span> Depositing Credits...';
+  }
+  isSubmittingInspection = true;
 
-  const res = await submitExchangeInspectionInSupabase(exchangeId, userId, inspectionData);
-  if (res.error) {
-    showToastNotification('Inspection Error', res.error, 'error');
-  } else {
-    showToastNotification('Inspection Finalized', `Awarded ₹${final_credits_issued} store credits to customer wallet.`, 'success');
-    closeGlobalModal();
-    await fetchAllRealtimeData();
-    renderActiveTabContent();
+  try {
+    const actual_weight_kg = Number(document.getElementById('insp-weight').value);
+    const grade = document.getElementById('insp-grade').value;
+    const final_credits_issued = Number(document.getElementById('insp-final-credits').value);
+    const inspector_notes = document.getElementById('insp-notes').value;
+
+    const inspectionData = {
+      actual_weight_kg,
+      grade,
+      accepted_items_count: grade === 'rejected' ? 0 : 1,
+      rejected_items_count: grade === 'rejected' ? 1 : 0,
+      final_credits_issued,
+      inspector_notes,
+      inspection_photos: [],
+    };
+
+    const res = await submitExchangeInspectionInSupabase(exchangeId, userId, inspectionData);
+    if (res.error) {
+      const errMsg = res.error.message || (typeof res.error === 'string' ? res.error : 'Inspection failed');
+      showToastNotification('Inspection Error', errMsg, 'error');
+    } else {
+      showToastNotification('Inspection Finalized', `Awarded ₹${final_credits_issued} store credits to customer wallet.`, 'success');
+      closeGlobalModal();
+      await fetchAllRealtimeData();
+      renderActiveTabContent();
+    }
+  } finally {
+    isSubmittingInspection = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = 'Approve & Deposit Credits →';
+    }
   }
 }
 
@@ -2204,7 +2411,8 @@ async function handleBroadcastSubmit(e, targetUserId) {
 
   const res = await sendBroadcastNotificationInSupabase(title, body, type, targetUserId || null);
   if (res.error) {
-    showToastNotification('Push Error', res.error, 'error');
+    const errMsg = res.error?.message || (typeof res.error === 'string' ? res.error : JSON.stringify(res.error));
+    showToastNotification('Push Error', errMsg, 'error');
   } else {
     showToastNotification('Push Alert Transmitted', 'Sent directly into customer mobile inboxes.', 'success');
     closeGlobalModal();
@@ -2260,7 +2468,7 @@ function renderServiceabilityView() {
               ${STATE.serviceability.map(pin => `
                 <tr>
                   <td class="font-mono font-bold text-white text-sm">${pin.pincode}</td>
-                  <td class="font-semibold text-white">${pin.area_name || 'Corridor'}</td>
+                  <td class="font-semibold text-white">${pin.city_name || pin.area_name || 'Corridor'}</td>
                   <td class="text-slate-400 text-xs">${pin.state || 'Maharashtra'}</td>
                   <td class="font-mono text-xs">
                     ${pin.active_route_available ? '<span class="text-emerald-400">✓ Active Route</span>' : '<span class="text-slate-500">Standard</span>'}
@@ -2375,6 +2583,7 @@ async function handlePincodeSubmit(e) {
 
   const res = await createPincodeInSupabase({
     pincode,
+    city_name: area_name,
     area_name,
     state,
     status: 'active',
@@ -2382,7 +2591,8 @@ async function handlePincodeSubmit(e) {
   });
 
   if (res.error) {
-    showToastNotification('Error Adding PIN', res.error.message, 'error');
+    const errorMsg = res.error.message || (typeof res.error === 'string' ? res.error : 'Failed to add PIN code');
+    showToastNotification('Error Adding PIN', errorMsg, 'error');
   } else {
     showToastNotification('PIN Added', `${pincode} (${area_name}) is now live in app.`, 'success');
     closeGlobalModal();
@@ -2604,19 +2814,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     const admin = await checkAdminSession();
     if (admin) {
+      document.documentElement.classList.add('admin-authenticated');
       document.getElementById('admin-login-overlay')?.classList.add('hidden');
       document.getElementById('admin-unauthorized-overlay')?.classList.add('hidden');
       document.getElementById('main-dashboard')?.classList.remove('hidden');
       await initializeDashboard();
     } else {
-      const sb = typeof getSupabase === 'function' ? getSupabase() : null;
-      const { data: sessionData } = sb ? await sb.auth.getSession() : { data: {} };
-      if (sessionData?.session?.user) {
-        // Authenticated with Supabase but not yet authorized as admin
+      const stored = typeof getStoredAdminSession === 'function' ? getStoredAdminSession() : null;
+      if (stored) {
+        CURRENT_ADMIN = stored;
+        updateAdminHeader();
+        document.documentElement.classList.add('admin-authenticated');
         document.getElementById('admin-login-overlay')?.classList.add('hidden');
-        document.getElementById('admin-unauthorized-overlay')?.classList.remove('hidden');
-        document.getElementById('main-dashboard')?.classList.add('hidden');
+        document.getElementById('admin-unauthorized-overlay')?.classList.add('hidden');
+        document.getElementById('main-dashboard')?.classList.remove('hidden');
+        await initializeDashboard();
       } else {
+        document.documentElement.classList.remove('admin-authenticated');
         document.getElementById('admin-login-overlay')?.classList.remove('hidden');
         document.getElementById('admin-unauthorized-overlay')?.classList.add('hidden');
         document.getElementById('main-dashboard')?.classList.add('hidden');
@@ -2624,9 +2838,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (e) {
     console.warn('[REVARA] Session check warning:', e);
-    document.getElementById('admin-login-overlay')?.classList.remove('hidden');
-    document.getElementById('admin-unauthorized-overlay')?.classList.add('hidden');
-    document.getElementById('main-dashboard')?.classList.add('hidden');
+    const stored = typeof getStoredAdminSession === 'function' ? getStoredAdminSession() : null;
+    if (stored) {
+      document.documentElement.classList.add('admin-authenticated');
+      document.getElementById('admin-login-overlay')?.classList.add('hidden');
+      document.getElementById('main-dashboard')?.classList.remove('hidden');
+      await initializeDashboard();
+    } else {
+      document.documentElement.classList.remove('admin-authenticated');
+      document.getElementById('admin-login-overlay')?.classList.remove('hidden');
+      document.getElementById('admin-unauthorized-overlay')?.classList.add('hidden');
+      document.getElementById('main-dashboard')?.classList.add('hidden');
+    }
   }
 });
 

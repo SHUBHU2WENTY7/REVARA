@@ -51,6 +51,21 @@
 
   <!-- Modern Obsidian & Electric Indigo Stylesheet -->
   <link rel="stylesheet" href="styles.css">
+
+  <!-- Instant Session Persistence: Restores active admin before first paint -->
+  <script>
+    (function() {
+      try {
+        var s = localStorage.getItem('revara_admin_session');
+        if (s) {
+          var parsed = JSON.parse(s);
+          if (parsed && (parsed.email || parsed.id)) {
+            document.documentElement.classList.add('admin-authenticated');
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body class="bg-[#080C14] text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
 

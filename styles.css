@@ -218,3 +218,12 @@ body {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
+
+/* Persistent Admin Authentication State (Zero flicker on page refresh) */
+html.admin-authenticated #admin-login-overlay {
+  display: none !important;
+}
+html.admin-authenticated #main-dashboard {
+  display: flex !important;
+}
+
