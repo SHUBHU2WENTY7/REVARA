@@ -156,16 +156,19 @@ DROP POLICY IF EXISTS "Admins full management wallet_transactions" ON public.wal
 CREATE POLICY "Admins full management wallet_transactions" ON public.wallet_transactions FOR ALL USING (true) WITH CHECK (true);
 
 -- ── 9. ATOMIC & IDEMPOTENT EXCHANGE CREDIT ISSUANCE RPC ──────────────────────
+DROP FUNCTION IF EXISTS public.approve_exchange_credits(UUID, UUID, NUMERIC, TEXT, INT, INT, NUMERIC, TEXT[], TEXT);
+DROP FUNCTION IF EXISTS public.approve_exchange_credits;
+
 CREATE OR REPLACE FUNCTION public.approve_exchange_credits(
   p_exchange_id        UUID,
   p_inspector_id       UUID,
   p_actual_weight_kg   NUMERIC,
   p_grade              TEXT,
   p_accepted_items     INT,
-  p_rejected_items     INT,
-  p_final_credits      NUMERIC,
-  p_inspection_photos  TEXT[],
-  p_notes              TEXT DEFAULT ''
+  p_rejected_items     INT     DEFAULT 0,
+  p_final_credits      NUMERIC DEFAULT 0,
+  p_inspection_photos  TEXT[]  DEFAULT '{}',
+  p_notes              TEXT    DEFAULT ''
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
