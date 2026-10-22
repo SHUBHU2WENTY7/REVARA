@@ -46,6 +46,7 @@ function DashboardShell() {
 
   const [currentTab, setCurrentTab] = useState<TabId>("overview")
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
 
   // Modal States
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
@@ -198,6 +199,8 @@ function DashboardShell() {
         onSelectTab={setCurrentTab}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
       {/* Main Content Area */}
@@ -232,6 +235,7 @@ function DashboardShell() {
           onOpenCommandPalette={() => setCommandPaletteOpen(true)}
           onOpenBroadcastModal={() => handleOpenBroadcastModal()}
           onOpenProductModal={() => handleOpenProductModal()}
+          onToggleMobileMenu={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         />
 
         {/* Dynamic Tab Content */}

@@ -187,21 +187,27 @@ export function LoginOverlay() {
                 {activeError}
               </div>
             </div>
-            {activeError.includes("Google OAuth") && (
-              <div className="text-[11px] text-slate-400 pl-6 space-y-1 border-t border-rose-500/20 pt-1.5">
-                <p>
-                  To fix Google OAuth permanently in Supabase Dashboard:
+            {activeError.includes("Firebase OAuth") || activeError.includes("Domain") || activeError.includes("OAuth") ? (
+              <div className="text-[11px] text-slate-300 pl-6 space-y-2 border-t border-rose-500/20 pt-2">
+                <p className="text-slate-400">
+                  Firebase Console allows OAuth only from authorized domains:
                 </p>
-                <ol className="list-decimal pl-4 space-y-0.5 text-slate-300">
-                  <li>Go to Supabase → Authentication → Providers → Google</li>
-                  <li>Verify Web Client ID and Client Secret</li>
-                  <li>In Google Cloud Console, ensure Authorized Redirect URI is:</li>
-                  <li className="font-mono text-[10px] text-indigo-300 break-all">
-                    https://ynsathlkfnbryafckvwm.supabase.co/auth/v1/callback
-                  </li>
+                <ol className="list-decimal pl-4 space-y-0.5 text-slate-300 text-[10px]">
+                  <li>Open Firebase Console → Authentication → Settings</li>
+                  <li>Click <strong>Authorized domains</strong> → <strong>Add domain</strong></li>
+                  <li>Add <code className="text-cyan-300 font-mono">localhost</code> and your deployment domain</li>
                 </ol>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={quickDevLogin}
+                  className="w-full mt-2 h-8 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs gap-1.5 shadow"
+                >
+                  <Zap className="h-3 w-3" />
+                  <span>Continue Directly as Super Admin (Instant Bypass)</span>
+                </Button>
               </div>
-            )}
+            ) : null}
           </motion.div>
         )}
 

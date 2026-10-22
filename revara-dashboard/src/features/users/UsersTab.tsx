@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import {
   Users,
   Bell,
@@ -31,6 +31,59 @@ export interface UsersTabProps {
 export function UsersTab({ onOpenTargetedBroadcast }: UsersTabProps) {
   const { state } = useDashboardData()
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null)
+
+  // Synthesize profiles: real profiles + virtual profiles from user IDs across tables
+  const synthesizedProfiles: Profile[] = useMemo(() => {
+    const profileMap = new Map<string, Profile>()
+
+    // 1. Seed from real profiles table (may be empty)
+    state.profiles.forEach((p) => {
+      profileMap.set(p.id, { ...p })
+    })
+
+    // 2. Collect user IDs from wallets, orders, exchanges, reviews
+    const allUserIds = new Set<string>()
+    state.wallets.forEach((w) => w.user_id && allUserIds.add(w.user_id))
+    state.orders.forEach((o) => o.user_id && allUserIds.add(o.user_id))
+    state.exchanges.forEach((e) => e.user_id && allUserIds.add(e.user_id))
+    state.reviews.forEach((r) => r.user_id && allUserIds.add(r.user_id))
+
+    // 3. For any user_id not already in profileMap, synthesize a virtual profile
+    allUserIds.forEach((uid) => {
+      if (profileMap.has(uid)) return
+
+      // Try to find a name from reviews, orders, or exchanges
+      const review = state.reviews.find((r) => r.user_id === uid)
+      const order = state.orders.find((o) => o.user_id === uid)
+      const exchange = state.exchanges.find((e) => e.user_id === uid)
+      const wallet = state.wallets.find((w) => w.user_id === uid)
+
+      const name = review?.user_name || order?.customer_name || exchange?.customer_name || null
+      const email = order?.customer_email || exchange?.customer_email || null
+      const avatar = review?.avatar_url || null
+
+      // Find earliest activity date
+      const dates = [
+        order?.created_at,
+        exchange?.created_at,
+        review?.created_at,
+        wallet?.updated_at,
+      ].filter(Boolean) as string[]
+      const earliest = dates.length > 0 ? dates.sort()[0] : new Date().toISOString()
+
+      profileMap.set(uid, {
+        id: uid,
+        full_name: name,
+        email: email,
+        phone: null,
+        avatar_url: avatar,
+        role: "customer",
+        created_at: earliest,
+      })
+    })
+
+    return Array.from(profileMap.values())
+  }, [state.profiles, state.wallets, state.orders, state.exchanges, state.reviews])
 
   const columns: ColumnDef<Profile>[] = [
     {
@@ -152,7 +205,7 @@ export function UsersTab({ onOpenTargetedBroadcast }: UsersTabProps) {
 
       {/* CRM Table */}
       <DataTable
-        data={state.profiles as (Profile & Record<string, unknown>)[]}
+        data={synthesizedProfiles as (Profile & Record<string, unknown>)[]}
         columns={columns as ColumnDef<Profile & Record<string, unknown>>[]}
         keyExtractor={(p) => p.id}
         searchPlaceholder="Search collector by name, email, or user ID..."

@@ -100,8 +100,17 @@ export function ReviewsTab() {
                   </div>
 
                   <p className="text-xs text-slate-200 leading-relaxed italic">
-                    "{r.comment}"
+                    "{r.body || r.comment || 'No review text'}"
                   </p>
+
+                  {/* Review photos */}
+                  {r.photo_urls && r.photo_urls.length > 0 && (
+                    <div className="flex gap-1.5 flex-wrap">
+                      {r.photo_urls.map((url, i) => (
+                        <img key={i} src={url} alt="" className="h-12 w-12 rounded-md object-cover border border-white/10" />
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2 pt-2 border-t border-white/[0.05]">
@@ -115,7 +124,7 @@ export function ReviewsTab() {
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="text-slate-400 flex items-center gap-1 truncate">
                       <User className="h-3 w-3 text-cyan-400 shrink-0" />
-                      <span>{customer?.full_name || "Verified Collector"}</span>
+                      <span>{r.user_name || customer?.full_name || "Verified Collector"}</span>
                     </span>
 
                     <button

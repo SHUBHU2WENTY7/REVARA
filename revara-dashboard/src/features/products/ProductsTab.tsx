@@ -62,14 +62,14 @@ export function ProductsTab({
   }, [state.products, state.categories])
 
   const handleDelete = async (p: Product) => {
-    if (!confirm(`Are you sure you want to archive product "${p.name}"?`)) return
+    if (!confirm(`Are you sure you want to permanently delete product "${p.name}" from catalog?`)) return
     try {
       const res = await deleteProductInSupabase(p.id)
       if (res.error) throw res.error
-      toast.success(`Archived "${p.name}"!`)
+      toast.success(`Permanently deleted "${p.name}" from catalog!`)
       await refreshData()
     } catch {
-      toast.error("Failed to archive product.")
+      toast.error("Failed to delete product.")
     }
   }
 
@@ -96,7 +96,24 @@ export function ProductsTab({
             )}
             <div className="overflow-hidden">
               <p className="font-semibold text-white truncate max-w-xs">{p.name}</p>
-              <p className="text-[11px] text-slate-400 font-mono">{p.sku}</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] text-slate-400 font-mono">{p.sku}</span>
+                {(() => {
+                  const sizeTags = (p.tags || [])
+                    .filter((t) => t.startsWith("size:"))
+                    .map((t) => t.replace("size:", ""))
+                  const dimSizes = p.dimensions
+                    ? p.dimensions.split(",").map((s) => s.trim()).filter(Boolean)
+                    : []
+                  const allSizes = Array.from(new Set([...sizeTags, ...dimSizes]))
+                  if (allSizes.length === 0) return null
+                  return (
+                    <span className="text-[10px] font-mono text-cyan-300 bg-cyan-950/60 border border-cyan-800/50 px-1.5 py-0.2 rounded">
+                      {allSizes.slice(0, 4).join(" · ")}{allSizes.length > 4 ? " +" : ""}
+                    </span>
+                  )
+                })()}
+              </div>
             </div>
           </div>
         )

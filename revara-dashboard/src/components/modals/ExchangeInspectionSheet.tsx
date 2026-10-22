@@ -19,9 +19,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Maximize2,
+  Trash2,
 } from "lucide-react"
 import type { ExchangeRequest, ExchangeInspection } from "@/types"
-import { submitExchangeInspectionInSupabase } from "@/lib/supabase"
+import { submitExchangeInspectionInSupabase, deleteExchangeInSupabase } from "@/lib/supabase"
 import { useDashboardData } from "@/hooks/useDashboardData"
 import { formatDateTime, statusColor } from "@/lib/utils"
 import { toast } from "sonner"
@@ -46,7 +47,31 @@ export function ExchangeInspectionSheet({
   const [finalCredits, setFinalCredits] = useState<number | "">(500)
   const [notes, setNotes] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [lightboxImage, setLightboxImage] = useState<string | null>(null)
+
+  const handleDeleteExchange = async () => {
+    if (!exchange) return
+    if (
+      !confirm(
+        `Permanently delete trade-in request #${exchange.id.slice(0, 8).toUpperCase()} and all inspection files from Supabase?`
+      )
+    ) {
+      return
+    }
+    setIsDeleting(true)
+    try {
+      const res = await deleteExchangeInSupabase(exchange.id)
+      if (res.error) throw res.error
+      toast.success(`Trade-in #${exchange.id.slice(0, 8).toUpperCase()} deleted.`)
+      await refreshData()
+      onOpenChange(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete trade-in.")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   // Auto-calculate credits based on grade
   const handleGradeChange = (newGrade: "a" | "b" | "c" | "rejected") => {
@@ -348,17 +373,42 @@ export function ExchangeInspectionSheet({
                   />
                 </div>
 
-                <SheetFooter className="pt-2">
+                <SheetFooter className="pt-2 flex flex-col sm:flex-row gap-2">
                   <Button
                     type="submit"
-                    disabled={isSubmitting}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs tracking-wide shadow-lg shadow-emerald-600/30 gap-2"
+                    disabled={isSubmitting || isDeleting}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs tracking-wide shadow-lg shadow-emerald-600/30 gap-2"
                   >
                     <CheckCircle2 className="h-4 w-4" />
-                    <span>{isSubmitting ? "Depositing Credits..." : "Approve & Deposit Credits to Customer"}</span>
+                    <span>{isSubmitting ? "Depositing Credits..." : "Approve & Deposit Credits"}</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={isSubmitting || isDeleting}
+                    onClick={handleDeleteExchange}
+                    className="bg-rose-500/15 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 text-xs gap-1.5 shrink-0"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>{isDeleting ? "Deleting..." : "Delete Trade-In"}</span>
                   </Button>
                 </SheetFooter>
               </form>
+            )}
+
+            {isAlreadyProcessed && (
+              <div className="pt-3 border-t border-white/[0.08] flex justify-end">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={isDeleting}
+                  onClick={handleDeleteExchange}
+                  className="bg-rose-500/15 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 text-xs gap-1.5"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>{isDeleting ? "Deleting..." : "Delete Trade-In Record"}</span>
+                </Button>
+              </div>
             )}
           </div>
         </SheetContent>

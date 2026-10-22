@@ -119,11 +119,11 @@ export function BroadcastModal({
               onChange={(e) => setType(e.target.value)}
               className="flex h-9 w-full rounded-lg border border-white/10 bg-[#0B101D] px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
-              <option value="promo">Promotional / Campaign</option>
-              <option value="flash_sale">Flash Sale Announcement</option>
+              <option value="promo">Promotional / Campaign Drop</option>
+              <option value="general">General App Announcement</option>
               <option value="order_update">Order Status Update</option>
               <option value="credit_issued">Wallet Credit Alert</option>
-              <option value="system">System Notification</option>
+              <option value="exchange_update">Garment Trade-In Update</option>
             </select>
           </div>
 

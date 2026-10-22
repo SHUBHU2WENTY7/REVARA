@@ -10,6 +10,8 @@ import {
   Clock,
   AlertCircle,
   Eye,
+  Trash2,
+  User,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -17,7 +19,7 @@ import { DataTable, type ColumnDef } from "@/components/ui/table-with-dialog"
 import { useDashboardData } from "@/hooks/useDashboardData"
 import type { Order, OrderStatus } from "@/types"
 import { formatCurrency, formatDateTime, statusColor } from "@/lib/utils"
-import { updateOrderStatusInSupabase } from "@/lib/supabase"
+import { updateOrderStatusInSupabase, deleteOrderInSupabase, deleteOrdersBulkInSupabase } from "@/lib/supabase"
 import { toast } from "sonner"
 
 export interface OrdersTabProps {
@@ -75,30 +77,31 @@ export function OrdersTab({ onSelectOrder }: OrdersTabProps) {
       sortable: true,
       accessor: (o) => {
         const c = state.profiles.find((p) => p.id === o.user_id)
-        return c?.full_name || o.customer_name || "Guest"
+        return c?.full_name || o.customer_name || "Shubhanshu Tiwari"
       },
       render: (o) => {
         const c = state.profiles.find((p) => p.id === o.user_id)
+        const name = c?.full_name || o.customer_name || "Shubhanshu Tiwari"
+        const email = c?.email || o.customer_email || "shubhu2wenty7@gmail.com"
+        const phone = c?.phone || (o as any).customer_phone || "+91 98765 43210"
+
         return (
           <div>
-            <p className="font-semibold text-white">
-              {c?.full_name || o.customer_name || "Guest Collector"}
-            </p>
-            <p className="text-[11px] text-slate-400 font-mono">
-              {c?.email || o.customer_email || o.user_id.slice(0, 8)}
-            </p>
+            <p className="font-semibold text-white">{name}</p>
+            <p className="text-[11px] text-slate-400 font-mono">{email}</p>
+            <p className="text-[10px] text-slate-500 font-mono">{phone}</p>
           </div>
         )
       },
     },
     {
-      key: "total_amount",
+      key: "total",
       header: "Total (₹)",
       sortable: true,
-      accessor: (o) => Number(o.total_amount),
+      accessor: (o) => Number(o.total) || Number(o.total_amount) || 0,
       render: (o) => (
         <span className="font-mono font-bold text-cyan-400">
-          {formatCurrency(o.total_amount)}
+          {formatCurrency(o.total || o.total_amount)}
         </span>
       ),
     },
@@ -142,18 +145,41 @@ export function OrdersTab({ onSelectOrder }: OrdersTabProps) {
       key: "actions",
       header: "Manage",
       render: (o) => (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={(e) => {
-            e.stopPropagation()
-            onSelectOrder(o)
-          }}
-          className="h-7 text-[11px] gap-1 hover:bg-indigo-600 hover:text-white hover:border-indigo-500 transition-colors"
-        >
-          <Eye className="h-3 w-3" />
-          <span>Dispatch →</span>
-        </Button>
+        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onSelectOrder(o)}
+            className="h-7 text-[11px] gap-1 hover:bg-indigo-600 hover:text-white hover:border-indigo-500 transition-colors"
+          >
+            <Eye className="h-3 w-3" />
+            <span>Dispatch →</span>
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={async () => {
+              if (
+                confirm(
+                  `Permanently delete order #${o.id.slice(0, 8).toUpperCase()} from Supabase?`
+                )
+              ) {
+                try {
+                  const res = await deleteOrderInSupabase(o.id)
+                  if (res.error) throw res.error
+                  toast.success(`Order #${o.id.slice(0, 8).toUpperCase()} deleted.`)
+                  await refreshData()
+                } catch {
+                  toast.error("Failed to delete order.")
+                }
+              }
+            }}
+            className="h-7 w-7 p-0 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10"
+            title="Delete Order Record"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       ),
     },
   ]
@@ -260,6 +286,27 @@ export function OrdersTab({ onSelectOrder }: OrdersTabProps) {
             {
               label: "Mark Shipped",
               onClick: (selected) => handleBulkStatusChange(selected as unknown as Order[], "shipped"),
+            },
+            {
+              label: "Delete Selected",
+              variant: "destructive",
+              onClick: async (selected) => {
+                const ids = selected.map((s) => s.id)
+                if (
+                  confirm(
+                    `Are you sure you want to permanently delete ${ids.length} orders from Supabase?`
+                  )
+                ) {
+                  try {
+                    const res = await deleteOrdersBulkInSupabase(ids)
+                    if (res.error) throw res.error
+                    toast.success(`Deleted ${res.count} orders from Supabase.`)
+                    await refreshData()
+                  } catch {
+                    toast.error("Failed to delete selected orders.")
+                  }
+                }
+              },
             },
           ]}
         />

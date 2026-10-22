@@ -7,6 +7,7 @@ import {
   Clock,
   Sparkles,
   Eye,
+  Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DataTable, type ColumnDef } from "@/components/ui/table-with-dialog"
@@ -17,13 +18,15 @@ import {
 import { useDashboardData } from "@/hooks/useDashboardData"
 import type { ExchangeRequest } from "@/types"
 import { formatCurrency, formatDateTime, statusColor } from "@/lib/utils"
+import { deleteExchangeInSupabase, deleteExchangesBulkInSupabase } from "@/lib/supabase"
+import { toast } from "sonner"
 
 export interface ExchangesTabProps {
   onSelectExchange: (exchange: ExchangeRequest) => void
 }
 
 export function ExchangesTab({ onSelectExchange }: ExchangesTabProps) {
-  const { state } = useDashboardData()
+  const { state, refreshData } = useDashboardData()
   const [statusFilter, setStatusFilter] = useState<string>("all")
 
   const filteredExchanges = useMemo(() => {
@@ -31,24 +34,32 @@ export function ExchangesTab({ onSelectExchange }: ExchangesTabProps) {
     return state.exchanges.filter((e) => e.status === statusFilter)
   }, [state.exchanges, statusFilter])
 
-  // Carousel items from submitted garment photos
+  // Carousel items from submitted garment photos (LIVE data only, NO mock fallbacks)
   const tradeInGalleryItems: CarouselCardItem[] = useMemo(() => {
     const list: CarouselCardItem[] = []
     state.exchangeItems.forEach((item) => {
       const parentExchange = state.exchanges.find((e) => e.id === item.exchange_id)
-      const photo =
-        item.photos?.[0] ||
-        "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=800&auto=format&fit=crop&q=80"
+      // Pick first genuine image (excluding video URLs)
+      const imagePhotos = (item.photos || []).filter(
+        (url) => !url.toLowerCase().endsWith(".mp4") && !url.toLowerCase().includes(".mp4")
+      )
+      const photo = imagePhotos[0]
+      const hasVideo =
+        Boolean(item.video_url) ||
+        (item.photos || []).some((u) => u.toLowerCase().includes(".mp4"))
+
+      // Only display items with genuine user-uploaded media
+      if (!photo) return
 
       list.push({
         id: item.id,
-        title: `${item.brand || "Vintage"} ${item.category || "Garment"}`,
-        category: item.condition || "Trade-In",
+        title: `${item.brand || (item as any).material || "Vintage"} ${item.category || "Garment"}`,
+        category: `${item.condition || "Trade-In"} • ${(item as any).quantity || 1} pcs`,
         src: photo,
-        badge: item.video_url ? "VIDEO INSPECTION" : undefined,
+        badge: hasVideo ? "VIDEO INSPECTED" : "VERIFIED PHOTOS",
         content: (
           <p className="text-xs text-slate-300">
-            Exchange #{parentExchange?.id.slice(0, 8).toUpperCase()} • Condition: {item.condition || "Good"}
+            Exchange #{(parentExchange as any)?.exchange_id || parentExchange?.id.slice(0, 8).toUpperCase()} • Condition: {item.condition || "Good"}
           </p>
         ),
       })
@@ -159,18 +170,41 @@ export function ExchangesTab({ onSelectExchange }: ExchangesTabProps) {
       key: "actions",
       header: "Appraisal",
       render: (e) => (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={(ev) => {
-            ev.stopPropagation()
-            onSelectExchange(e)
-          }}
-          className="h-7 text-[11px] gap-1 hover:bg-emerald-600 hover:text-white hover:border-emerald-500 transition-colors"
-        >
-          <Eye className="h-3 w-3" />
-          <span>Inspect & Grade →</span>
-        </Button>
+        <div className="flex items-center gap-1.5" onClick={(ev) => ev.stopPropagation()}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onSelectExchange(e)}
+            className="h-7 text-[11px] gap-1 hover:bg-emerald-600 hover:text-white hover:border-emerald-500 transition-colors"
+          >
+            <Eye className="h-3 w-3" />
+            <span>Inspect & Grade →</span>
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={async () => {
+              if (
+                confirm(
+                  `Permanently delete garment trade-in submission #${e.id.slice(0, 8).toUpperCase()} from Supabase?`
+                )
+              ) {
+                try {
+                  const res = await deleteExchangeInSupabase(e.id)
+                  if (res.error) throw res.error
+                  toast.success(`Trade-in #${e.id.slice(0, 8).toUpperCase()} deleted.`)
+                  await refreshData()
+                } catch {
+                  toast.error("Failed to delete trade-in.")
+                }
+              }
+            }}
+            className="h-7 w-7 p-0 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10"
+            title="Delete Trade-In Submission"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       ),
     },
   ]
@@ -224,6 +258,29 @@ export function ExchangesTab({ onSelectExchange }: ExchangesTabProps) {
         searchPlaceholder="Search exchange ID or collector..."
         onRowClick={(e) => onSelectExchange(e as unknown as ExchangeRequest)}
         exportFilename="revara-trade-ins"
+        bulkActions={[
+          {
+            label: "Delete Selected",
+            variant: "destructive",
+            onClick: async (selected) => {
+              const ids = selected.map((s) => s.id)
+              if (
+                confirm(
+                  `Are you sure you want to permanently delete ${ids.length} trade-ins from Supabase?`
+                )
+              ) {
+                try {
+                  const res = await deleteExchangesBulkInSupabase(ids)
+                  if (res.error) throw res.error
+                  toast.success(`Deleted ${res.count} trade-in submissions.`)
+                  await refreshData()
+                } catch {
+                  toast.error("Failed to delete selected trade-ins.")
+                }
+              }
+            },
+          },
+        ]}
       />
     </div>
   )

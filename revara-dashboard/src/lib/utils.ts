@@ -8,7 +8,22 @@ export function cn(...inputs: ClassValue[]) {
 export function formatCurrency(amount?: number | string | null): string {
   const num = typeof amount === "number" ? amount : Number(amount)
   if (isNaN(num)) return "₹0"
-  return `₹${num.toLocaleString("en-IN")}`
+  const rounded = Math.round(num * 100) / 100
+  const hasDecimals = rounded % 1 !== 0
+  return `₹${rounded.toLocaleString("en-IN", {
+    minimumFractionDigits: hasDecimals ? 2 : 0,
+    maximumFractionDigits: 2,
+  })}`
+}
+
+/** Safely extract the total from an order, handling both `total` and `total_amount` */
+export function orderTotal(o: Record<string, unknown>): number {
+  return Number(o?.total ?? o?.total_amount ?? o?.subtotal ?? 0) || 0
+}
+
+/** Safely extract item unit price from `unit_price` or `price` */
+export function itemPrice(item: Record<string, unknown>): number {
+  return Number(item?.unit_price ?? item?.price ?? 0) || 0
 }
 
 export function formatDate(date?: string | Date | null): string {

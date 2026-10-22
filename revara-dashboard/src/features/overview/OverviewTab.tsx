@@ -54,7 +54,7 @@ export function OverviewTab({
   const totalRevenue = useMemo(() => {
     return state.orders
       .filter((o) => o.status !== "cancelled")
-      .reduce((acc, o) => acc + (Number(o.total_amount) || 0), 0)
+      .reduce((acc, o) => acc + (Number(o.total) || Number(o.total_amount) || 0), 0)
   }, [state.orders])
 
   // Active Orders count
@@ -95,7 +95,7 @@ export function OverviewTab({
       )
 
       const dayRev = dayOrders.reduce(
-        (acc, o) => acc + (Number(o.total_amount) || 0),
+        (acc, o) => acc + (Number(o.total) || Number(o.total_amount) || 0),
         0
       )
 
