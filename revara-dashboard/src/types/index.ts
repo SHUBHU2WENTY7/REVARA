@@ -50,6 +50,8 @@ export interface Product {
   is_new: boolean
   is_featured: boolean
   images: string[]
+  tags?: string[]
+  dimensions?: string | null
   created_at: string
   updated_at?: string
   status?: string
@@ -76,12 +78,20 @@ export interface Order {
   id: string
   user_id: string
   status: OrderStatus
-  total_amount: number
+  /** Supabase column is `total`; legacy code may reference `total_amount` */
+  total: number
+  total_amount?: number
+  subtotal?: number
   subtotal_amount?: number
+  discount?: number
   discount_amount?: number
+  credits_applied?: number
+  shipping_fee?: number
   shipping_amount?: number
   wallet_credit_used?: number
+  address_id?: string
   shipping_address_id?: string
+  payment_id?: string
   tracking_number?: string | null
   notes?: string | null
   created_at: string
@@ -96,8 +106,11 @@ export interface OrderItem {
   order_id: string
   product_id: string
   quantity: number
-  price: number
-  unit_price?: number
+  /** Supabase column is `unit_price` */
+  unit_price: number
+  /** Alias kept for backward compat */
+  price?: number
+  total?: number
   product_name?: string
   product_image?: string
 }
@@ -166,11 +179,16 @@ export interface Profile {
 export interface Address {
   id: string
   user_id: string
+  line1?: string
+  line2?: string
   address_line1?: string
   address_line2?: string
+  label?: string
   city?: string
   state?: string
   pincode: string
+  phone?: string
+  name?: string
   is_default?: boolean
   created_at?: string
 }
@@ -228,11 +246,19 @@ export interface CityWaitlistEntry {
 
 export interface Review {
   id: string
-  product_id: string
-  user_id: string
+  product_id: string | null
+  user_id: string | null
+  /** Supabase stores reviewer name directly on the review row */
+  user_name?: string | null
+  avatar_url?: string | null
   rating: number
-  comment: string
+  title?: string | null
+  /** Supabase column is `body`; legacy code may reference `comment` */
+  body?: string | null
+  comment?: string | null
+  photo_urls?: string[]
   is_verified_purchase?: boolean
+  helpful_count?: number
   status?: string
   created_at: string
 }

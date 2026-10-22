@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Shield,
+  X,
 } from "lucide-react"
 import type { TabId } from "@/types"
 import { useAuth } from "@/hooks/useAuth"
@@ -30,6 +31,8 @@ export interface SidebarProps {
   onSelectTab: (tab: TabId) => void
   isCollapsed: boolean
   onToggleCollapse: () => void
+  isMobileOpen?: boolean
+  onCloseMobile?: () => void
 }
 
 interface NavSection {
@@ -48,6 +51,8 @@ export function Sidebar({
   onSelectTab,
   isCollapsed,
   onToggleCollapse,
+  isMobileOpen = false,
+  onCloseMobile,
 }: SidebarProps) {
   const { admin, logout } = useAuth()
   const { sidebarBadges } = useDashboardData()
@@ -94,116 +99,136 @@ export function Sidebar({
     },
   ]
 
+  const handleItemClick = (id: TabId) => {
+    onSelectTab(id)
+    if (onCloseMobile) onCloseMobile()
+  }
+
   return (
-    <aside
-      className={`fixed top-0 left-0 bottom-0 z-40 flex flex-col justify-between border-r border-white/[0.08] bg-[#0B101D] transition-all duration-300 ${
-        isCollapsed ? "w-[72px]" : "w-[260px]"
-      }`}
-    >
-      {/* Brand Header */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-white/[0.08]">
-        {!isCollapsed && (
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {isMobileOpen && (
+        <div
+          onClick={onCloseMobile}
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden transition-opacity"
+        />
+      )}
+
+      <aside
+        className={`fixed top-0 left-0 bottom-0 z-50 md:z-40 flex flex-col justify-between border-r border-white/[0.08] bg-[#0B101D] transition-transform md:transition-all duration-300 ${
+          isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        } ${isCollapsed ? "md:w-[72px]" : "w-[260px]"}`}
+      >
+        {/* Brand Header */}
+        <div className="h-16 flex items-center justify-between px-4 border-b border-white/[0.08]">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-indigo-600/30">
               <Layers className="h-4 w-4 text-white" />
             </div>
-            <div>
-              <h1 className="font-bold text-sm text-white tracking-wider">REVARA</h1>
-              <p className="text-[10px] text-slate-400 font-mono tracking-widest uppercase">
-                COMMAND CENTER
-              </p>
-            </div>
-          </div>
-        )}
-
-        {isCollapsed && (
-          <div className="h-8 w-8 mx-auto rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-indigo-600/30">
-            <Layers className="h-4 w-4 text-white" />
-          </div>
-        )}
-
-        <button
-          onClick={onToggleCollapse}
-          className="hidden md:flex h-6 w-6 rounded-md items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-        >
-          {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </button>
-      </div>
-
-      {/* Navigation Sections */}
-      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-6 custom-scrollbar">
-        {sections.map((section, sIdx) => (
-          <div key={sIdx} className="space-y-1">
-            {!isCollapsed && (
-              <h2 className="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                {section.title}
-              </h2>
+            {(!isCollapsed || isMobileOpen) && (
+              <div>
+                <h1 className="font-bold text-sm text-white tracking-wider">REVARA</h1>
+                <p className="text-[10px] text-slate-400 font-mono tracking-widest uppercase">
+                  COMMAND CENTER
+                </p>
+              </div>
             )}
-            <div className="space-y-0.5">
-              {section.items.map((item) => {
-                const Icon = item.icon
-                const isActive = currentTab === item.id
-                const badgeCount = item.badgeKey ? sidebarBadges[item.badgeKey] : 0
-
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => onSelectTab(item.id)}
-                    className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all group cursor-pointer ${
-                      isActive
-                        ? "text-white font-semibold shadow-sm"
-                        : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
-                    }`}
-                    title={isCollapsed ? item.label : undefined}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeTabIndicator"
-                        className="absolute inset-0 rounded-xl bg-gradient-to-r from-indigo-600/30 to-indigo-600/10 border border-indigo-500/30 -z-10"
-                        transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                      />
-                    )}
-
-                    <Icon
-                      className={`h-4 w-4 shrink-0 transition-colors ${
-                        isActive ? "text-indigo-400" : "text-slate-400 group-hover:text-slate-200"
-                      }`}
-                    />
-
-                    {!isCollapsed && (
-                      <span className="truncate flex-1 text-left">{item.label}</span>
-                    )}
-
-                    {!isCollapsed && (
-                      <>
-                        {item.isLiveBadge && (
-                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 status-beacon-active" />
-                            LIVE
-                          </span>
-                        )}
-
-                        {badgeCount > 0 && (
-                          <span
-                            className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
-                              item.badgeKey === "lowStock"
-                                ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                                : "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                            }`}
-                          >
-                            {badgeCount}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
           </div>
-        ))}
-      </div>
+
+          <div className="flex items-center gap-1">
+            {/* Desktop Collapse Toggle */}
+            <button
+              onClick={onToggleCollapse}
+              className="hidden md:flex h-6 w-6 rounded-md items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            >
+              {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            </button>
+
+            {/* Mobile Close Button */}
+            <button
+              onClick={onCloseMobile}
+              className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              title="Close Menu"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Navigation Sections */}
+        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-6 custom-scrollbar">
+          {sections.map((section, sIdx) => (
+            <div key={sIdx} className="space-y-1">
+              {(!isCollapsed || isMobileOpen) && (
+                <h2 className="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  {section.title}
+                </h2>
+              )}
+              <div className="space-y-0.5">
+                {section.items.map((item) => {
+                  const Icon = item.icon
+                  const isActive = currentTab === item.id
+                  const badgeCount = item.badgeKey ? sidebarBadges[item.badgeKey] : 0
+
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleItemClick(item.id)}
+                      className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all group cursor-pointer ${
+                        isActive
+                          ? "text-white font-semibold shadow-sm"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
+                      }`}
+                      title={isCollapsed && !isMobileOpen ? item.label : undefined}
+                    >
+                      {isActive && (
+                        <motion.div
+                          layoutId="activeTabIndicator"
+                          className="absolute inset-0 rounded-xl bg-gradient-to-r from-indigo-600/30 to-indigo-600/10 border border-indigo-500/30 -z-10"
+                          transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                        />
+                      )}
+
+                      <Icon
+                        className={`h-4 w-4 shrink-0 transition-colors ${
+                          isActive ? "text-indigo-400" : "text-slate-400 group-hover:text-slate-200"
+                        }`}
+                      />
+
+                      {(!isCollapsed || isMobileOpen) && (
+                        <span className="truncate flex-1 text-left">{item.label}</span>
+                      )}
+
+                      {(!isCollapsed || isMobileOpen) && (
+                        <>
+                          {item.isLiveBadge && (
+                            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 status-beacon-active" />
+                              LIVE
+                            </span>
+                          )}
+
+                          {badgeCount > 0 && (
+                            <span
+                              className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                                item.badgeKey === "lowStock"
+                                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                  : "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                              }`}
+                            >
+                              {badgeCount}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
 
       {/* Footer / Admin Profile Card */}
       <div className="p-3 border-t border-white/[0.08] bg-[#080C14]/50">
@@ -256,5 +281,6 @@ export function Sidebar({
         )}
       </div>
     </aside>
+  </>
   )
 }

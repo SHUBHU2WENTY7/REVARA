@@ -1,14 +1,47 @@
-import { Bell, Plus, Send, CheckCircle2, User, Globe } from "lucide-react"
+import { useState } from "react"
+import { Bell, Plus, Send, CheckCircle2, User, Globe, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useDashboardData } from "@/hooks/useDashboardData"
 import { formatDateTime } from "@/lib/utils"
+import { deleteNotificationInSupabase, deleteNotificationsBulkInSupabase } from "@/lib/supabase"
+import { toast } from "sonner"
 
 export interface NotificationsTabProps {
   onOpenBroadcastModal: () => void
 }
 
 export function NotificationsTab({ onOpenBroadcastModal }: NotificationsTabProps) {
-  const { state } = useDashboardData()
+  const { state, refreshData } = useDashboardData()
+  const [isDeletingAll, setIsDeletingAll] = useState(false)
+
+  const handleDeleteNotification = async (id: string, title: string) => {
+    if (!confirm(`Delete notification "${title}" from Supabase?`)) return
+    try {
+      const res = await deleteNotificationInSupabase(id)
+      if (res.error) throw res.error
+      toast.success("Notification deleted.")
+      await refreshData()
+    } catch {
+      toast.error("Failed to delete notification.")
+    }
+  }
+
+  const handleClearAll = async () => {
+    if (state.notifications.length === 0) return
+    if (!confirm(`Permanently delete all ${state.notifications.length} notifications from Supabase?`)) return
+    setIsDeletingAll(true)
+    try {
+      const ids = state.notifications.map((n) => n.id)
+      const res = await deleteNotificationsBulkInSupabase(ids)
+      if (res.error) throw res.error
+      toast.success(`Cleared ${res.count} notifications from Supabase.`)
+      await refreshData()
+    } catch {
+      toast.error("Failed to clear notifications.")
+    } finally {
+      setIsDeletingAll(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -23,13 +56,27 @@ export function NotificationsTab({ onOpenBroadcastModal }: NotificationsTabProps
           </p>
         </div>
 
-        <Button
-          onClick={onOpenBroadcastModal}
-          className="h-8 gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30"
-        >
-          <Bell className="h-3.5 w-3.5" />
-          <span>Broadcast Push Alert</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {state.notifications.length > 0 && (
+            <Button
+              variant="outline"
+              disabled={isDeletingAll}
+              onClick={handleClearAll}
+              className="h-8 gap-1.5 text-xs text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border-white/10"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>{isDeletingAll ? "Clearing..." : "Clear All Alerts"}</span>
+            </Button>
+          )}
+
+          <Button
+            onClick={onOpenBroadcastModal}
+            className="h-8 gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30"
+          >
+            <Bell className="h-3.5 w-3.5" />
+            <span>Broadcast Push Alert</span>
+          </Button>
+        </div>
       </div>
 
       {/* Dispatched Notifications List */}
@@ -41,6 +88,8 @@ export function NotificationsTab({ onOpenBroadcastModal }: NotificationsTabProps
         ) : (
           state.notifications.map((n) => {
             const recipient = state.profiles.find((p) => p.id === n.user_id)
+            const recipientName = recipient?.full_name || "Shubhanshu Tiwari"
+            const recipientEmail = recipient?.email || "shubhu2wenty7@gmail.com"
 
             return (
               <div
@@ -55,14 +104,14 @@ export function NotificationsTab({ onOpenBroadcastModal }: NotificationsTabProps
                     <div className="flex items-center gap-2">
                       <h4 className="text-xs font-bold text-white">{n.title}</h4>
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-white/5 border border-white/10 text-slate-300">
-                        {n.type || "alert"}
+                        {n.type || "promo"}
                       </span>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">{n.body}</p>
                     <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono pt-1">
-                      {recipient ? (
+                      {n.user_id ? (
                         <span className="flex items-center gap-1 text-indigo-300">
-                          <User className="h-2.5 w-2.5" /> Direct: {recipient.full_name || recipient.email}
+                          <User className="h-2.5 w-2.5" /> Direct: {recipientName} ({recipientEmail})
                         </span>
                       ) : (
                         <span className="flex items-center gap-1 text-slate-400">
@@ -73,10 +122,19 @@ export function NotificationsTab({ onOpenBroadcastModal }: NotificationsTabProps
                   </div>
                 </div>
 
-                <div className="text-right shrink-0">
+                <div className="flex flex-col items-end gap-2 shrink-0">
                   <span className="text-[10px] font-mono text-slate-500">
                     {formatDateTime(n.created_at)}
                   </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDeleteNotification(n.id, n.title)}
+                    className="h-7 w-7 p-0 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10"
+                    title="Delete Notification"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               </div>
             )

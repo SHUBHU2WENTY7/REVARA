@@ -10,6 +10,7 @@ import {
   User,
   Shield,
   Layers,
+  Menu,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -32,6 +33,7 @@ export interface ResizableNavbarProps {
   onOpenCommandPalette: () => void
   onOpenBroadcastModal: () => void
   onOpenProductModal: () => void
+  onToggleMobileMenu?: () => void
 }
 
 export function ResizableNavbar({
@@ -40,6 +42,7 @@ export function ResizableNavbar({
   onOpenCommandPalette,
   onOpenBroadcastModal,
   onOpenProductModal,
+  onToggleMobileMenu,
 }: ResizableNavbarProps) {
   const { admin, logout } = useAuth()
   const { state, isSyncing, refreshData } = useDashboardData()
@@ -75,6 +78,16 @@ export function ResizableNavbar({
     >
       {/* Left: Quick links & Mobile trigger */}
       <div className="flex items-center gap-1.5 md:gap-3">
+        {/* Mobile Hamburger Button */}
+        <button
+          type="button"
+          onClick={onToggleMobileMenu}
+          className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+          title="Open Navigation"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+
         <div className="flex items-center gap-2">
           <div className="h-7 w-7 rounded-lg bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center shadow-md shadow-indigo-500/20">
             <Layers className="h-4 w-4 text-white" />
