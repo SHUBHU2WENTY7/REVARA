@@ -1,0 +1,156 @@
+/* Lumen Design System Tokens */
+
+:root,
+[data-theme="light"],
+html:not([data-theme="dark"]):not(.dark) {
+  --bg: #F4F3F0;
+  --surface: #FFFFFF;
+  --surface-2: #FAFAF8;
+  --well: #ECEBE7;
+  --line: #E6E5DF;
+  --line-2: #D2D1CA;
+  --text: #14130F;
+  --muted: #55554F;
+  --faint: #6B6B65;
+  --ink: #111111;
+  --on-ink: #FFFFFF;
+  --primary: #2A6F9A;
+  --primary-2: #4F9BC9;
+  --primary-soft: #E3EFF7;
+  
+  --c1: #2A6F9A;
+  --c2: #8EC3EA;
+  --c3: #3AA38A;
+  --c4: #7B6FD6;
+  --c5: #E0A030;
+
+  --up: #0B7A5C;
+  --down: #C22D34;
+  --warn: #9A5B00;
+
+  --card-radius: 20px;
+  --inner-radius: 14px;
+  --control-radius: 10px;
+  --pill-radius: 999px;
+
+  --shadow-rest: none;
+  --shadow-lift: 0 8px 24px -12px rgba(0, 0, 0, 0.12);
+  --shadow-popover: 0 16px 40px -12px rgba(0, 0, 0, 0.2);
+
+  --font-display: 'Manrope', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+
+  /* Motion tokens */
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-io: cubic-bezier(.65, 0, .35, 1);
+  --dur-1: 120ms;
+  --dur-2: 220ms;
+  --dur-3: 420ms;
+  --dur-4: 900ms;
+  --stagger: 40ms;
+}
+
+[data-theme="dark"],
+html.dark {
+  --bg: #0E0E0F;
+  --surface: #17171A;
+  --surface-2: #1D1D21;
+  --well: #26262B;
+  --line: #2A2A2F;
+  --line-2: #3A3A41;
+  --text: #F2F1EE;
+  --muted: #A8A7A1;
+  --faint: #8D8C86;
+  --ink: #F2F1EE;
+  --on-ink: #111111;
+  --primary: #5AA8D6;
+  --primary-2: #7DBBE3;
+  --primary-soft: #1B2E3A;
+
+  --c1: #2A6F9A;
+  --c2: #8EC3EA;
+  --c3: #3AA38A;
+  --c4: #7B6FD6;
+  --c5: #E0A030;
+
+  --up: #4ADBAE;
+  --down: #FF8A8F;
+  --warn: #F0B54A;
+
+  --shadow-lift: 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  --shadow-popover: 0 16px 40px -12px rgba(0, 0, 0, 0.6);
+}
+
+/* Card inversion utility */
+.kpi-card-inverted {
+  background: var(--ink) !important;
+  color: var(--on-ink) !important;
+}
+
+[data-theme="light"] .kpi-card-inverted,
+html:not([data-theme="dark"]):not(.dark) .kpi-card-inverted {
+  background: #111111 !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .kpi-card-inverted,
+html.dark .kpi-card-inverted {
+  background: #FFFFFF !important;
+  color: #111111 !important;
+}
+
+/* Diagonal hatched background pattern */
+.hatched-bar {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.08) 2px,
+    transparent 2px,
+    transparent 6px
+  );
+}
+
+[data-theme="light"] .hatched-bar,
+html:not([data-theme="dark"]):not(.dark) .hatched-bar {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 0.09),
+    rgba(0, 0, 0, 0.09) 2px,
+    transparent 2px,
+    transparent 6px
+  );
+}
+
+/* 1px quiet inset ring */
+.lumen-card {
+  background: var(--surface);
+  border-radius: var(--card-radius);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .lumen-card:hover {
+    transform: translateY(-2px);
+    box-shadow: inset 0 0 0 1px var(--line), var(--shadow-lift);
+  }
+}
+
+.lumen-card:active {
+  transform: scale(0.985);
+}
+
+/* Tabular figures for numerals */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
