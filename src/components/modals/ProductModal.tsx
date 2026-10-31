@@ -55,9 +55,41 @@ export function ProductModal({ open, onOpenChange, product }: ProductModalProps)
   const [isSaving, setIsSaving] = useState(false)
 
   // Wearable / Fashion Sizing System
+  const [hasSizes, setHasSizes] = useState(false)
   const [selectedSizes, setSelectedSizes] = useState<string[]>([])
   const [customSizeInput, setCustomSizeInput] = useState("")
   const [activeSizeCategory, setActiveSizeCategory] = useState<"apparel" | "bottoms" | "footwear">("apparel")
+
+  const isCategoryWearable = (catId: string) => {
+    const cat = state.categories.find((c) => c.id === catId)
+    if (!cat) return false
+    const name = (cat.name || "").toLowerCase()
+    const slug = (cat.slug || "").toLowerCase()
+    return /wear|cloth|apparel|shoe|footwear|sneaker|bottom|pant|jean|trouser|shirt|top|hoodie|jacket|t-shirt|kurti|dress|garment/i.test(
+      `${name} ${slug}`
+    )
+  }
+
+  const handleCategoryChange = (newCatId: string) => {
+    setCategoryId(newCatId)
+    const wearable = isCategoryWearable(newCatId)
+    if (wearable) {
+      setHasSizes(true)
+      const cat = state.categories.find((c) => c.id === newCatId)
+      const name = (cat?.name || "").toLowerCase()
+      if (/shoe|footwear|sneaker/i.test(name)) {
+        setActiveSizeCategory("footwear")
+      } else if (/pant|jean|trouser|bottom/i.test(name)) {
+        setActiveSizeCategory("bottoms")
+      } else {
+        setActiveSizeCategory("apparel")
+      }
+      toast.info("Wearable category detected. Size selection activated.")
+    } else {
+      setHasSizes(false)
+      setSelectedSizes([])
+    }
+  }
 
   const SIZE_PRESETS = {
     apparel: {
@@ -112,12 +144,14 @@ export function ProductModal({ open, onOpenChange, product }: ProductModalProps)
         : []
       const mergedSizes = Array.from(new Set([...sizeTags, ...dimensionSizes]))
       setSelectedSizes(mergedSizes)
+      setHasSizes(mergedSizes.length > 0 || isCategoryWearable(product.category_id || ""))
     } else {
       setName("")
       setSku(generateSku())
       setPrice("")
       setStock("")
-      setCategoryId(state.categories[0]?.id || "")
+      const initialCatId = state.categories[0]?.id || ""
+      setCategoryId(initialCatId)
       setBrand("REVARA")
       setDescription("")
       setImages([])
@@ -126,6 +160,7 @@ export function ProductModal({ open, onOpenChange, product }: ProductModalProps)
       setIsNew(true)
       setIsFeatured(false)
       setSelectedSizes([])
+      setHasSizes(isCategoryWearable(initialCatId))
     }
   }, [product, state.categories, open])
 
@@ -170,7 +205,7 @@ export function ProductModal({ open, onOpenChange, product }: ProductModalProps)
     setIsSaving(true)
     try {
       const nonSizeTags = (product?.tags || []).filter((t) => !t.startsWith("size:"))
-      const sizeTags = selectedSizes.map((s) => `size:${s}`)
+      const sizeTags = hasSizes ? selectedSizes.map((s) => `size:${s}`) : []
 
       const payload: Partial<Product> = {
         name: name.trim(),
@@ -185,7 +220,7 @@ export function ProductModal({ open, onOpenChange, product }: ProductModalProps)
         is_new: isNew,
         is_featured: isFeatured,
         tags: [...nonSizeTags, ...sizeTags],
-        dimensions: selectedSizes.length > 0 ? selectedSizes.join(", ") : null,
+        dimensions: hasSizes && selectedSizes.length > 0 ? selectedSizes.join(", ") : null,
         images: images.length > 0 ? images : [
           "https://images.unsplash.com/photo-1544816155-12df9643f363?w=800&auto=format&fit=crop&q=80"
         ],
@@ -376,7 +411,7 @@ export function ProductModal({ open, onOpenChange, product }: ProductModalProps)
               </label>
               <select
                 value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
+                onChange={(e) => handleCategoryChange(e.target.value)}
                 className="flex h-9 w-full rounded-lg border border-white/10 bg-[#0B101D] px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
                 <option value="">Uncategorized</option>
@@ -415,101 +450,121 @@ export function ProductModal({ open, onOpenChange, product }: ProductModalProps)
           </div>
 
           {/* Wearable & Fashion Size Manager */}
-          <div className="space-y-2.5 p-3.5 rounded-xl bg-[#0B101D] border border-white/[0.08]">
+          <div className="space-y-3 p-3.5 rounded-xl bg-[#0B101D] border border-white/[0.08]">
             <div className="flex items-center justify-between">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                <span>Wearable Sizing Matrix (Fashion Drops & Apparel)</span>
+              <label className="text-[12px] font-semibold text-slate-200 flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={hasSizes}
+                  onCheckedChange={(checked) => {
+                    const val = Boolean(checked)
+                    setHasSizes(val)
+                    if (!val) {
+                      setSelectedSizes([])
+                    }
+                  }}
+                />
+                <span>Include Size Selection for this Product? (Wearables / Apparel / Footwear)</span>
               </label>
-              <span className="text-[10px] font-mono text-cyan-400">
-                {selectedSizes.length} {selectedSizes.length === 1 ? "size active" : "sizes active"}
-              </span>
+              {hasSizes && (
+                <span className="text-[10px] font-mono text-cyan-400">
+                  {selectedSizes.length} {selectedSizes.length === 1 ? "size active" : "sizes active"}
+                </span>
+              )}
             </div>
 
-            {/* Sizing Category Tabs */}
-            <div className="flex gap-1.5 p-1 rounded-lg bg-white/[0.03] border border-white/5">
-              {(Object.keys(SIZE_PRESETS) as Array<keyof typeof SIZE_PRESETS>).map((catKey) => (
-                <button
-                  key={catKey}
-                  type="button"
-                  onClick={() => setActiveSizeCategory(catKey)}
-                  className={`flex-1 py-1 px-2 rounded-md text-[11px] font-medium transition-all ${
-                    activeSizeCategory === catKey
-                      ? "bg-indigo-600 text-white font-semibold shadow-sm"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  {SIZE_PRESETS[catKey].label.split("/")[0].trim()}
-                </button>
-              ))}
-            </div>
-
-            {/* Preset Size Pills */}
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {SIZE_PRESETS[activeSizeCategory].sizes.map((sz) => {
-                const isSelected = selectedSizes.includes(sz)
-                return (
-                  <button
-                    key={sz}
-                    type="button"
-                    onClick={() => toggleSize(sz)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer ${
-                      isSelected
-                        ? "bg-indigo-600 text-white border border-indigo-400/50 shadow-sm"
-                        : "bg-white/[0.04] text-slate-400 hover:text-slate-200 border border-white/10 hover:border-white/20"
-                    }`}
-                  >
-                    {isSelected ? `✓ ${sz}` : sz}
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Custom Size Addition */}
-            <div className="flex gap-2 pt-1 border-t border-white/5">
-              <Input
-                placeholder="Or add custom size (e.g. Free Size, 42, UK 13)..."
-                value={customSizeInput}
-                onChange={(e) => setCustomSizeInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault()
-                    addCustomSize()
-                  }
-                }}
-                className="h-8 text-xs font-mono"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addCustomSize}
-                className="h-8 shrink-0 text-xs gap-1 border-white/10"
-              >
-                <Plus className="h-3 w-3" />
-                Add Size
-              </Button>
-            </div>
-
-            {/* Active Selected Sizes summary */}
-            {selectedSizes.length > 0 && (
-              <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                <span className="text-[10px] text-slate-500 uppercase font-mono">Catalog Sizes:</span>
-                {selectedSizes.map((s) => (
-                  <span
-                    key={s}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-[10px] font-mono font-bold"
-                  >
-                    <span>{s}</span>
+            {!hasSizes ? (
+              <p className="text-[11px] text-slate-400 pl-6">
+                Size options disabled. This item will display with no size picker in the mobile app (ideal for tech, electronics, accessories, and one-size collectibles).
+              </p>
+            ) : (
+              <>
+                {/* Sizing Category Tabs */}
+                <div className="flex gap-1.5 p-1 rounded-lg bg-white/[0.03] border border-white/5">
+                  {(Object.keys(SIZE_PRESETS) as Array<keyof typeof SIZE_PRESETS>).map((catKey) => (
                     <button
+                      key={catKey}
                       type="button"
-                      onClick={() => toggleSize(s)}
-                      className="hover:text-rose-400 text-slate-400 ml-0.5"
+                      onClick={() => setActiveSizeCategory(catKey)}
+                      className={`flex-1 py-1 px-2 rounded-md text-[11px] font-medium transition-all ${
+                        activeSizeCategory === catKey
+                          ? "bg-indigo-600 text-white font-semibold shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      }`}
                     >
-                      ×
+                      {SIZE_PRESETS[catKey].label.split("/")[0].trim()}
                     </button>
-                  </span>
-                ))}
-              </div>
+                  ))}
+                </div>
+
+                {/* Preset Size Pills */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {SIZE_PRESETS[activeSizeCategory].sizes.map((sz) => {
+                    const isSelected = selectedSizes.includes(sz)
+                    return (
+                      <button
+                        key={sz}
+                        type="button"
+                        onClick={() => toggleSize(sz)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-indigo-600 text-white border border-indigo-400/50 shadow-sm"
+                            : "bg-white/[0.04] text-slate-400 hover:text-slate-200 border border-white/10 hover:border-white/20"
+                        }`}
+                      >
+                        {isSelected ? `✓ ${sz}` : sz}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Custom Size Addition */}
+                <div className="flex gap-2 pt-1 border-t border-white/5">
+                  <Input
+                    placeholder="Or add custom size (e.g. Free Size, 42, UK 13)..."
+                    value={customSizeInput}
+                    onChange={(e) => setCustomSizeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        addCustomSize()
+                      }
+                    }}
+                    className="h-8 text-xs font-mono"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addCustomSize}
+                    className="h-8 shrink-0 text-xs gap-1 border-white/10"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add Size
+                  </Button>
+                </div>
+
+                {/* Active Selected Sizes summary */}
+                {selectedSizes.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                    <span className="text-[10px] text-slate-500 uppercase font-mono">Catalog Sizes:</span>
+                    {selectedSizes.map((s) => (
+                      <span
+                        key={s}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-[10px] font-mono font-bold"
+                      >
+                        <span>{s}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleSize(s)}
+                          className="hover:text-rose-400 text-slate-400 ml-0.5"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
 

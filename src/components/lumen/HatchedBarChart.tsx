@@ -43,14 +43,27 @@ export function HatchedBarChart({
   const containerRef = useRef<HTMLDivElement>(null)
   const isInView = useInView(containerRef, { once: true, amount: 0.3 })
   const [selectedYear, setSelectedYear] = useState(year)
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(9) // default to Oct (index 9)
+  const currentMonthIdx = new Date().getMonth()
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(currentMonthIdx)
 
-  const maxVal = 60000
-  const avgVal = 30000
+  const maxVal = useMemo(() => {
+    const maxRevenue = Math.max(...data.map((d) => d.revenue), 1)
+    // Round up to a nice number for the Y-axis
+    const magnitude = Math.pow(10, Math.floor(Math.log10(maxRevenue)))
+    return Math.ceil(maxRevenue / magnitude) * magnitude || 60000
+  }, [data])
 
-  const yTicks = [60000, 45000, 30000, 15000, 0]
+  const avgVal = useMemo(() => {
+    const total = data.reduce((acc, d) => acc + d.revenue, 0)
+    return data.length > 0 ? Math.round(total / data.length) : 0
+  }, [data])
 
-  const activeItem = hoveredIndex !== null ? data[hoveredIndex] : data[9]
+  const yTicks = useMemo(() => {
+    const step = maxVal / 4
+    return [maxVal, Math.round(step * 3), Math.round(step * 2), Math.round(step), 0]
+  }, [maxVal])
+
+  const activeItem = hoveredIndex !== null ? data[hoveredIndex] : data[currentMonthIdx]
 
   return (
     <motion.div
@@ -107,7 +120,7 @@ export function HatchedBarChart({
         <div className="flex flex-col justify-between h-48 text-[11px] font-mono text-[var(--faint)] pr-3 text-right w-10 shrink-0">
           {yTicks.map((tick) => (
             <span key={tick}>
-              {tick === 0 ? "$0" : `$${tick / 1000}k`}
+              {tick === 0 ? `${currencySymbol}0` : `${currencySymbol}${tick / 1000}k`}
             </span>
           ))}
         </div>
@@ -132,7 +145,7 @@ export function HatchedBarChart({
             style={{ bottom: `${(avgVal / maxVal) * 100}%` }}
           >
             <span className="text-[10.5px] font-mono font-medium text-[var(--faint)] bg-[var(--surface)] px-1 -mt-2.5">
-              avg $30k
+              avg {currencySymbol}{avgVal >= 1000 ? `${(avgVal / 1000).toFixed(0)}k` : avgVal}
             </span>
           </div>
 
@@ -141,7 +154,7 @@ export function HatchedBarChart({
             {data.map((item, idx) => {
               const heightPercent = Math.min((item.revenue / maxVal) * 100, 100)
               const isHovered = hoveredIndex === idx
-              const isSelected = idx === 9 // Oct is the active default
+              const isSelected = idx === currentMonthIdx
 
               return (
                 <div
@@ -233,7 +246,7 @@ export function HatchedBarChart({
           <span
             key={item.month}
             className={`text-[11px] font-medium transition-colors cursor-pointer ${
-              hoveredIndex === idx || (hoveredIndex === null && idx === 9)
+              hoveredIndex === idx || (hoveredIndex === null && idx === currentMonthIdx)
                 ? "text-[var(--text)] font-bold"
                 : "text-[var(--faint)]"
             }`}

@@ -227,7 +227,7 @@ function DashboardShell() {
         pendingOrdersCount={pendingOrdersCount}
         pendingExchangesCount={pendingExchangeCount}
         unreadMessagesCount={2}
-        liveNowCount="1,379"
+        liveNowCount={state.orders.length > 0 ? state.orders.length.toLocaleString() : "0"}
         adminInitials={admin?.displayName?.slice(0, 2).toUpperCase() || "AD"}
         onOpenNotifications={() => setCurrentTab("messages")}
         theme={theme}
