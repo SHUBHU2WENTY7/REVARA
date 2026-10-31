@@ -40,10 +40,9 @@ export function OverviewTab({
 
   // Real data calculations
   const totalRevenue = useMemo(() => {
-    const rev = state.orders
+    return state.orders
       .filter((o) => o.status !== "cancelled")
       .reduce((acc, o) => acc + (Number(o.total) || Number(o.total_amount) || 0), 0)
-    return rev > 0 ? rev : 148320
   }, [state.orders])
 
   const activeOrdersCount = useMemo(() => {
@@ -62,10 +61,9 @@ export function OverviewTab({
     return state.products.filter((p) => p.stock <= 5).length
   }, [state.products])
 
-  const totalCatalogCount = state.products.length > 0 ? state.products.length : 24
+  const totalCatalogCount = state.products.length
   const totalUnitsInStock = useMemo(() => {
-    const units = state.products.reduce((acc, p) => acc + (p.stock || 0), 0)
-    return units > 0 ? units : 3842
+    return state.products.reduce((acc, p) => acc + (p.stock || 0), 0)
   }, [state.products])
 
   const recentOrders = useMemo(() => {
@@ -75,6 +73,36 @@ export function OverviewTab({
   const recentExchanges = useMemo(() => {
     return state.exchanges.slice(0, 3)
   }, [state.exchanges])
+
+  // Compute real monthly revenue data from orders
+  const monthlyRevenueData = useMemo(() => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const currentMonth = new Date().getMonth()
+    return months.map((m, idx) => {
+      const monthOrders = state.orders.filter((o) => {
+        const d = new Date(o.created_at)
+        return d.getMonth() === idx && d.getFullYear() === 2026 && o.status !== 'cancelled'
+      })
+      const revenue = monthOrders.reduce((acc, o) => acc + (Number(o.total) || Number(o.total_amount) || 0), 0)
+      return {
+        month: m,
+        revenue,
+        orders: monthOrders.length,
+        vsLastYear: '+0%',
+        isForecast: idx > currentMonth,
+      }
+    })
+  }, [state.orders])
+
+  // Compute dynamic gauge score based on fulfilled vs total orders
+  const salesScore = useMemo(() => {
+    const total = state.orders.length
+    if (total === 0) return 0
+    const fulfilled = state.orders.filter(
+      (o) => o.status === 'delivered' || o.status === 'shipped' || o.status === 'confirmed'
+    ).length
+    return Math.round((fulfilled / total) * 100)
+  }, [state.orders])
 
   return (
     <div className="space-y-6">
@@ -190,11 +218,11 @@ export function OverviewTab({
         <KpiCard
           label="Active Orders Pipeline"
           infoText="Customer orders currently placed, confirmed, or in fulfillment"
-          value={`${activeOrdersCount > 0 ? activeOrdersCount : 18} In Flight`}
-          rawValue={activeOrdersCount > 0 ? activeOrdersCount : 18}
-          delta="↑ 7.6%"
-          deltaType="up"
-          deltaPeriod={`${state.orders.length > 0 ? state.orders.length : 556} total orders`}
+          value={`${activeOrdersCount} In Flight`}
+          rawValue={activeOrdersCount}
+          delta={activeOrdersCount > 0 ? "↑ Active" : "— None"}
+          deltaType={activeOrdersCount > 0 ? "up" : "neutral"}
+          deltaPeriod={`${state.orders.length} total orders`}
           seeMoreLabel="Manage fulfillment"
           onSeeMore={() => onSelectTab("orders")}
           miniViz="sparkline"
@@ -204,11 +232,11 @@ export function OverviewTab({
         <KpiCard
           label="Circular Trade-In Queue"
           infoText="Customer luxury garments submitted for condition appraisal and wallet credits"
-          value={`${pendingExchangesCount > 0 ? pendingExchangesCount : 8} Pending`}
-          rawValue={pendingExchangesCount > 0 ? pendingExchangesCount : 8}
-          delta="↑ 6.4%"
-          deltaType="up"
-          deltaPeriod={`${state.exchanges.length > 0 ? state.exchanges.length : 42} items appraised`}
+          value={`${pendingExchangesCount} Pending`}
+          rawValue={pendingExchangesCount}
+          delta={pendingExchangesCount > 0 ? "↑ Active" : "— Clear"}
+          deltaType={pendingExchangesCount > 0 ? "up" : "neutral"}
+          deltaPeriod={`${state.exchanges.length} items appraised`}
           seeMoreLabel="Inspect trade-ins"
           onSeeMore={() => onSelectTab("exchanges")}
           miniViz="ring"
@@ -233,8 +261,8 @@ export function OverviewTab({
         {/* 4 Columns: Semicircle Radial Gauge */}
         <div className="lg:col-span-4">
           <Gauge
-            score={86}
-            delta="+3"
+            score={salesScore}
+            delta={salesScore > 50 ? `+${salesScore - 50}` : `${salesScore - 50}`}
             title="Sales performance"
             subtitle="of 100 points"
             description="Circular velocity & order fulfillment are beating target by 14%. Online direct did most of the lifting."
@@ -246,8 +274,9 @@ export function OverviewTab({
         {/* 8 Columns: Hatched Capsule Bar Chart */}
         <div className="lg:col-span-8">
           <HatchedBarChart
+            data={monthlyRevenueData}
             currencySymbol="₹"
-            totalYearRevenue={`${formatCurrency(totalRevenue * 4)} so far this year`}
+            totalYearRevenue={`${formatCurrency(totalRevenue)} so far this year`}
             year={2026}
           />
         </div>
